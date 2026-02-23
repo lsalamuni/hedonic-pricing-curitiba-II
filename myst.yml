@@ -2,14 +2,14 @@
 # See docs at: https://mystmd.org/guide/frontmatter
 version: 1
 project:
-  id: template-project
-  title: EXAMPLE PROJECT
-  description: Template for reproducible research projects in economics
+  id: hedonic-analysis
+  title: "Pricing the Unpriced: A Hedonic Analysis of Curitiba's Segmented Real Estate Market"
+  description: Hedonic pricing analysis of residential real estate in Curitiba, Brazil
   authors:
-    - name: JANE DOE
-      affiliations: [EXAMPLE UNIVERSITY]
-      email: janedoe@example-university.de
-  keywords: [economics, reproducible research]
+    - name: Lucas Salamuni
+      affiliations: [Universität zu Köln]
+      email: lsalamun@smail.uni-koeln.de
+  keywords: [hedonic pricing, principal component analysis, spatial econometrics, urban economics, real estate, market segmentation]
   toc:
     - file: documents/paper.md
   exports:
