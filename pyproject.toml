@@ -9,9 +9,11 @@ requires-python = "==3.14"
 dynamic = [ "version" ]
 keywords = [
   "Hedonic Pricing",
-  "Real Estate",
+  "Principal Component Analysis",
   "Spatial Econometrics",
-  "Reproducible Research",
+  "Urban Economics",
+  "Real Estate",
+  "Market Segmentation",
 ]
 classifiers = [
   "Intended Audience :: Science/Research",
@@ -90,6 +92,7 @@ pytest-xdist = "*"
 python-kaleido = ">=1.1"
 statsmodels = "*"
 ty = "*"
+pyarrow = ">=23.0.0,<24"
 
 [tool.pixi.pypi-dependencies]
 hedonic_analysis = { path = ".", editable = true }
