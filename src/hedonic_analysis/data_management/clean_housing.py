@@ -150,8 +150,6 @@ BAIRRO_CORRECTIONS: dict[str, str] = {
 # Compiled regex patterns
 # =====================================================================
 
-_PRICE_PATTERN = re.compile(r"R\$\s*([\d.]+)")
-
 _OFFPLAN_PATTERN = re.compile(
     r"breve\s*lan.amento"
     r"|unidades\s*dispon.veis"
@@ -225,10 +223,6 @@ _AMENITY_PATTERNS: dict[str, re.Pattern[str]] = {
     ),
     "Elevator": re.compile(r"elevador", re.IGNORECASE),
 }
-
-# =====================================================================
-# Outlier bounds
-# =====================================================================
 
 # =====================================================================
 # Address patterns
@@ -497,10 +491,8 @@ def _clean_endereco(series):
     """
     s = series.astype("string").str.strip()
 
-    # Remove "Endereco:" prefix
     s = s.str.replace(r"^Endereco:\s*", "", regex=True)
 
-    # Remove "Type:" form (colon after type name)
     s = s.str.replace(
         r"^(Rua|Avenida|Alameda|Travessa|Pra[cç]a"
         r"|Rodovia|Estrada):\s*",
@@ -509,7 +501,6 @@ def _clean_endereco(series):
         case=False,
     )
 
-    # Expand abbreviations
     s = s.str.replace(r"^R\.\s*", "Rua ", regex=True)
     s = s.str.replace(r"^Av\.\s*", "Avenida ", regex=True)
     s = s.str.replace(r"^Al\.\s*", "Alameda ", regex=True)
@@ -519,7 +510,6 @@ def _clean_endereco(series):
     )
     s = s.str.replace(r"^Rod\.\s*", "Rodovia ", regex=True)
 
-    # Strip apartment identifiers
     s = s.str.replace(r"\s*Apto:.*$", "", regex=True)
     s = s.str.replace(
         r"\s*Apt\.?\s*\d+.*$", "", regex=True,
@@ -528,49 +518,38 @@ def _clean_endereco(series):
         r"\s*Apartamento\s*\d+.*$", "", regex=True,
     )
 
-    # Remove Nº/nº/N°/n° and surrounding punctuation
     s = s.str.replace(
         r",?\s*[Nn][º°]\.?\s*,?", " ", regex=True,
     )
-    # Remove standalone "n"/"N" used as número before digits
     s = s.str.replace(
         r",?\s*\b[Nn]\b\s*,?\s*(?=\d)", " ", regex=True,
     )
 
-    # Remove stray dashes: "Colombo -, 21" → "Colombo, 21"
     s = s.str.replace(r"\s+-\s*,", ",", regex=True)
     s = s.str.replace(r"\s+-\s+(?=\d)", " ", regex=True)
 
-    # Remove CEP patterns and everything after
     s = s.str.replace(
         r"\s*-?\s*[Cc][Ee][Pp]:?.*$", "", regex=True,
     )
-    # Remove city name "Curitiba" and trailing info
     s = s.str.replace(
         r",\s*Curitiba\b.*$", "", regex=True,
     )
 
-    # Fix extra spaces before commas
     s = s.str.replace(r"\s+,", ",", regex=True)
 
-    # Normalize whitespace
     s = s.str.replace(r"\s+", " ", regex=True).str.strip()
 
-    # Title case (fixes ALL CAPS addresses)
     s = s.map(_smart_title)
 
-    # Add 'Rua' to addresses without a known type prefix
     has_type = s.str.contains(
         _KNOWN_TYPES_PATTERN, na=True,
     )
     s = s.where(has_type, "Rua " + s)
 
-    # Add comma before house number (last digits at end of string)
     s = s.str.replace(
         r"(?<!,)\s+(\d+)\s*$", r", \1", regex=True,
     )
 
-    # Remove trailing text after house number (neighborhood, etc.)
     s = s.str.replace(
         r"(,\s*\d+)\s*,.*$", r"\1", regex=True,
     )
@@ -656,10 +635,13 @@ def _cast_numeric_columns(df):
     Returns:
         DataFrame with casted columns.
     """
-    for col in ("Area_util_m2", "Preco"):
+    for col in ("Area_total_m2", "Area_util_m2", "Preco"):
         df[col] = pd.to_numeric(
             df[col], errors="coerce",
         ).astype(pd.Float32Dtype())
+    df["Idade_anos"] = pd.to_numeric(
+        df["Idade_anos"], errors="coerce",
+    ).astype(pd.Int16Dtype())
     return df
 
 
@@ -771,65 +753,41 @@ def clean_housing(raw_df):
     """
     df = raw_df.copy()
 
-    # 1. Drop empty rows (URL-only, from 403 blocks)
     df = _drop_empty_rows(df)
-
-    # 2. Drop duplicate URLs
     df = df.drop_duplicates(subset=["URL"])
-
-    # 3. Parse price
     df["Preco"] = _extract_price(df["Preco"])
-
-    # 4. Extract bairro from description tail
     df["Bairro"] = _extract_bairro(df)
-
-    # 5. Drop non-Curitiba (unmatched bairro)
     df = df.dropna(subset=["Bairro"])
-
-    # 6. Classify property category
     df["Category"] = _classify_category(df)
-
-    # 7. Clean addresses
     df["Endereco"] = _clean_endereco(df["Endereco"])
 
-    # 8. Drop rows without address or without house number
     df = df.dropna(subset=["Endereco"])
     df = df[df["Endereco"].str.strip().ne("")]
     df = df[df["Endereco"].str.contains(r"\d", na=False)]
 
-    # 9. Drop rows without usable area or without price
     df = df.dropna(subset=["Area_util_m2", "Preco"])
 
-    # 10. Detect off-plan properties
-    df["Offplan"] = _detect_offplan(df["Descricao"])
+    offplan_desc = _detect_offplan(df["Descricao"])
+    offplan_age = _detect_offplan(df["Idade_anos"])
+    df["Offplan"] = ((offplan_desc == 1) | (offplan_age == 1)).astype(pd.Int8Dtype())
 
-    # 11. Extract 13 amenity features
     amenities = _extract_amenities(df["Descricao"])
     df = pd.concat([df, amenities], axis=1)
 
-    # 12. Create count dummies
     df = _create_count_dummies(df, "N_quartos", "BEDROOM_", 4)
     df = _create_count_dummies(df, "N_banheiros", "BATHROOM_", 4)
     df = _create_count_dummies(df, "N_vagas", "PARKING_", 2)
 
-    # 13. Cast numeric columns
     df = _cast_numeric_columns(df)
-
-    # 14. Flag outliers (kept, not dropped)
     df["Outlier"] = _detect_outliers(df)
-
-    # 15. Drop text / useless columns
     df = df.drop(columns=list(_COLUMNS_TO_DROP), errors="ignore")
 
-    # 16. Validate
     _fail_if_bairro_not_valid(df["Bairro"])
     _fail_if_price_negative(df["Preco"])
 
-    # 17. Rename columns to English lowercase
     df = df.rename(columns=_COLUMN_RENAME)
     df.columns = df.columns.str.lower()
 
-    # 18. Move URL to last column
     if "url" in df.columns:
         cols = [c for c in df.columns if c != "url"] + ["url"]
         df = df[cols]
