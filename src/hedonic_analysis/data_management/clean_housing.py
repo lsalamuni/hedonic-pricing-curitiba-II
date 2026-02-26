@@ -640,7 +640,10 @@ def _cast_numeric_columns(df):
             df[col], errors="coerce",
         ).astype(pd.Float32Dtype())
     df["Idade_anos"] = pd.to_numeric(
-        df["Idade_anos"], errors="coerce",
+        df["Idade_anos"].astype("string").str.extract(
+            r"(\d+)", expand=False,
+        ),
+        errors="coerce",
     ).astype(pd.Int16Dtype())
     return df
 
