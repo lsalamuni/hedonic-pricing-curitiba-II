@@ -92,7 +92,7 @@ VALID_BAIRROS: tuple[str, ...] = (
 )
 
 # =====================================================================
-# Bairro corrections (typos / aliases → canonical name)
+# Bairro corrections (typos / aliases -> canonical name)
 # =====================================================================
 
 BAIRRO_CORRECTIONS: dict[str, str] = {
@@ -224,6 +224,38 @@ _AMENITY_PATTERNS: dict[str, re.Pattern[str]] = {
         re.IGNORECASE,
     ),
     "Elevator": re.compile(r"elevador", re.IGNORECASE),
+}
+
+# =====================================================================
+# Outlier bounds
+# =====================================================================
+
+# =====================================================================
+# Address patterns
+# =====================================================================
+
+_STREET_PREPS = re.compile(r"\b(De|Da|Do|Das|Dos|E)\b")
+
+_ROMAN_NUMERALS = re.compile(
+    r"\b(Ii|Iii|Iv|Vi|Vii|Viii|Ix"
+    r"|Xi|Xii|Xiii|Xiv|Xv|Xvi|Xvii|Xviii|Xix|Xx)\b",
+)
+
+_KNOWN_TYPES_PATTERN = re.compile(
+    r"^(?:Rua|Avenida|Alameda|Travessa|Praça"
+    r"|Rodovia|Estrada|Largo|Via|Linha) ",
+    re.IGNORECASE,
+)
+
+# =====================================================================
+# Column rename mapping (Portuguese → English lowercase)
+# =====================================================================
+
+_COLUMN_RENAME = {
+    "Endereco": "address",
+    "Bairro": "neighborhood",
+    "Area_util_m2": "usable_area_m2",
+    "Preco": "price",
 }
 
 # =====================================================================
@@ -425,11 +457,37 @@ def _classify_category(df):
     return result.astype(cat_type)
 
 
+def _smart_title(text):
+    """Title-case a string, keeping prepositions lowercase.
+
+    Handles Portuguese prepositions (de, da, do, das, dos, e) and
+    preserves Roman numerals (XV, II, etc.).
+
+    Args:
+        text: Raw address string.
+
+    Returns:
+        Title-cased string with correct prepositions.
+    """
+    if pd.isna(text) or not str(text).strip():
+        return pd.NA
+    titled = str(text).title()
+    titled = _STREET_PREPS.sub(
+        lambda m: m.group().lower(), titled,
+    )
+    titled = _ROMAN_NUMERALS.sub(
+        lambda m: m.group().upper(), titled,
+    )
+    return titled
+
+
 def _clean_endereco(series):
     """Standardize address strings.
 
-    Expands common abbreviations (R. → Rua, Av. → Avenida,
-    Al. → Alameda) and strips apartment identifiers.
+    Expands abbreviations (R. → Rua, Av. → Avenida, Al. → Alameda,
+    Tv. → Travessa), applies title case to ALL-CAPS addresses, adds
+    'Rua' prefix when no street type is present, and inserts a comma
+    before the house number.
 
     Args:
         series: Series of raw address strings.
@@ -438,9 +496,11 @@ def _clean_endereco(series):
         Cleaned address Series.
     """
     s = series.astype("string").str.strip()
-    s = s.str.replace(
-        r"^Endereco:\s*", "", regex=True,
-    )
+
+    # Remove "Endereco:" prefix
+    s = s.str.replace(r"^Endereco:\s*", "", regex=True)
+
+    # Remove "Type:" form (colon after type name)
     s = s.str.replace(
         r"^(Rua|Avenida|Alameda|Travessa|Pra[cç]a"
         r"|Rodovia|Estrada):\s*",
@@ -448,9 +508,18 @@ def _clean_endereco(series):
         regex=True,
         case=False,
     )
+
+    # Expand abbreviations
     s = s.str.replace(r"^R\.\s*", "Rua ", regex=True)
     s = s.str.replace(r"^Av\.\s*", "Avenida ", regex=True)
     s = s.str.replace(r"^Al\.\s*", "Alameda ", regex=True)
+    s = s.str.replace(r"^Tv\.\s*", "Travessa ", regex=True)
+    s = s.str.replace(
+        r"^P[çc]\.\s*", "Praça ", regex=True,
+    )
+    s = s.str.replace(r"^Rod\.\s*", "Rodovia ", regex=True)
+
+    # Strip apartment identifiers
     s = s.str.replace(r"\s*Apto:.*$", "", regex=True)
     s = s.str.replace(
         r"\s*Apt\.?\s*\d+.*$", "", regex=True,
@@ -458,7 +527,55 @@ def _clean_endereco(series):
     s = s.str.replace(
         r"\s*Apartamento\s*\d+.*$", "", regex=True,
     )
-    return s.str.replace(r"\s+", " ", regex=True).str.strip()
+
+    # Remove Nº/nº/N°/n° and surrounding punctuation
+    s = s.str.replace(
+        r",?\s*[Nn][º°]\.?\s*,?", " ", regex=True,
+    )
+    # Remove standalone "n"/"N" used as número before digits
+    s = s.str.replace(
+        r",?\s*\b[Nn]\b\s*,?\s*(?=\d)", " ", regex=True,
+    )
+
+    # Remove stray dashes: "Colombo -, 21" → "Colombo, 21"
+    s = s.str.replace(r"\s+-\s*,", ",", regex=True)
+    s = s.str.replace(r"\s+-\s+(?=\d)", " ", regex=True)
+
+    # Remove CEP patterns and everything after
+    s = s.str.replace(
+        r"\s*-?\s*[Cc][Ee][Pp]:?.*$", "", regex=True,
+    )
+    # Remove city name "Curitiba" and trailing info
+    s = s.str.replace(
+        r",\s*Curitiba\b.*$", "", regex=True,
+    )
+
+    # Fix extra spaces before commas
+    s = s.str.replace(r"\s+,", ",", regex=True)
+
+    # Normalize whitespace
+    s = s.str.replace(r"\s+", " ", regex=True).str.strip()
+
+    # Title case (fixes ALL CAPS addresses)
+    s = s.map(_smart_title)
+
+    # Add 'Rua' to addresses without a known type prefix
+    has_type = s.str.contains(
+        _KNOWN_TYPES_PATTERN, na=True,
+    )
+    s = s.where(has_type, "Rua " + s)
+
+    # Add comma before house number (last digits at end of string)
+    s = s.str.replace(
+        r"(?<!,)\s+(\d+)\s*$", r", \1", regex=True,
+    )
+
+    # Remove trailing text after house number (neighborhood, etc.)
+    s = s.str.replace(
+        r"(,\s*\d+)\s*,.*$", r"\1", regex=True,
+    )
+
+    return s
 
 
 def _detect_offplan(series):
@@ -640,17 +757,17 @@ def _fail_if_price_negative(series):
 def clean_housing(raw_df):
     """Clean raw ImovelWeb housing data for hedonic analysis.
 
-    Applies a 14-step pipeline: drop empty / duplicate rows, parse
-    prices, extract neighborhoods from descriptions, classify property
-    type, standardize addresses, detect off-plan status, extract
+    Applies a 17-step pipeline: drop empty / duplicate rows, parse
+    prices, extract neighborhoods, classify property type, standardize
+    addresses, drop invalid rows, detect off-plan status, extract
     amenity features, create count dummies, cast dtypes, flag outliers,
-    and drop intermediate columns.
+    drop intermediate columns, and rename to English lowercase.
 
     Args:
         raw_df: Raw DataFrame loaded from ``imovelweb_raw.csv``.
 
     Returns:
-        Cleaned DataFrame with ~30 columns ready for regression.
+        Cleaned DataFrame with ~30 English lowercase columns.
     """
     df = raw_df.copy()
 
@@ -675,29 +792,41 @@ def clean_housing(raw_df):
     # 7. Clean addresses
     df["Endereco"] = _clean_endereco(df["Endereco"])
 
-    # 8. Detect off-plan properties
+    # 8. Drop rows without address or without house number
+    df = df.dropna(subset=["Endereco"])
+    df = df[df["Endereco"].str.strip().ne("")]
+    df = df[df["Endereco"].str.contains(r"\d", na=False)]
+
+    # 9. Drop rows without usable area or without price
+    df = df.dropna(subset=["Area_util_m2", "Preco"])
+
+    # 10. Detect off-plan properties
     df["Offplan"] = _detect_offplan(df["Descricao"])
 
-    # 9. Extract 13 amenity features
+    # 11. Extract 13 amenity features
     amenities = _extract_amenities(df["Descricao"])
     df = pd.concat([df, amenities], axis=1)
 
-    # 10. Create count dummies
+    # 12. Create count dummies
     df = _create_count_dummies(df, "N_quartos", "BEDROOM_", 4)
     df = _create_count_dummies(df, "N_banheiros", "BATHROOM_", 4)
     df = _create_count_dummies(df, "N_vagas", "PARKING_", 2)
 
-    # 11. Cast numeric columns
+    # 13. Cast numeric columns
     df = _cast_numeric_columns(df)
 
-    # 12. Flag outliers (kept, not dropped)
+    # 14. Flag outliers (kept, not dropped)
     df["Outlier"] = _detect_outliers(df)
 
-    # 13. Drop text / useless columns
+    # 15. Drop text / useless columns
     df = df.drop(columns=list(_COLUMNS_TO_DROP), errors="ignore")
 
-    # 14. Validate
+    # 16. Validate
     _fail_if_bairro_not_valid(df["Bairro"])
     _fail_if_price_negative(df["Preco"])
+
+    # 17. Rename columns to English lowercase
+    df = df.rename(columns=_COLUMN_RENAME)
+    df.columns = df.columns.str.lower()
 
     return df.reset_index(drop=True)
