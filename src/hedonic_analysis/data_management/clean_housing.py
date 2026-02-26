@@ -252,9 +252,12 @@ _KNOWN_TYPES_PATTERN = re.compile(
 # =====================================================================
 
 _COLUMN_RENAME = {
+    "URL": "url",
     "Endereco": "address",
     "Bairro": "neighborhood",
+    "Area_total_m2": "total_area_m2",
     "Area_util_m2": "usable_area_m2",
+    "Idade_anos": "age_years",
     "Preco": "price",
 }
 
@@ -275,7 +278,6 @@ _IQR_K = 3.0
 # =====================================================================
 
 _COLUMNS_TO_DROP = (
-    "URL",
     "Tipo",
     "Categoria",
     "Adicionais",
@@ -284,8 +286,6 @@ _COLUMNS_TO_DROP = (
     "Descricao",
     "Planta",
     "IPTU",
-    "Idade_anos",
-    "Area_total_m2",
     "N_quartos",
     "N_banheiros",
     "N_vagas",
@@ -828,5 +828,10 @@ def clean_housing(raw_df):
     # 17. Rename columns to English lowercase
     df = df.rename(columns=_COLUMN_RENAME)
     df.columns = df.columns.str.lower()
+
+    # 18. Move URL to last column
+    if "url" in df.columns:
+        cols = [c for c in df.columns if c != "url"] + ["url"]
+        df = df[cols]
 
     return df.reset_index(drop=True)
