@@ -34,6 +34,8 @@ from selenium.common.exceptions import (
     WebDriverException,
 )
 from selenium.webdriver.common.by import By
+from selenium.webdriver.support import expected_conditions
+from selenium.webdriver.support.ui import WebDriverWait
 
 # =====================================================================================
 # Constants
@@ -897,12 +899,52 @@ def _extract_additional_details(soup):
     return record
 
 
+def _scroll_full_page(driver):
+    """Scroll the entire page to trigger lazy-loaded React sections."""
+    try:
+        page_height = driver.execute_script(
+            "return document.body.scrollHeight",
+        )
+        for pos in range(0, page_height, 600):
+            driver.execute_script(f"window.scrollTo(0, {pos});")
+            time.sleep(0.15)
+    except WebDriverException:
+        pass
+
+
+def _read_tab_items(container, label):
+    """Click a tab button's content and return deduplicated item strings."""
+    items = []
+    for selector in (
+        "span[class*='description-text']",
+        "span[class*='description']",
+        "li span",
+        "li",
+    ):
+        spans = container.find_elements(By.CSS_SELECTOR, selector)
+        items = [
+            s.text.strip() for s in spans
+            if s.is_displayed() and s.text.strip()
+        ]
+        if items:
+            break
+
+    seen = set()
+    unique = []
+    for item in items:
+        if item not in seen and item != label:
+            seen.add(item)
+            unique.append(item)
+    return unique
+
+
 def _extract_general_features(driver):
     """Click each tab in "Saiba mais" and extract feature items.
 
-    Uses Selenium with JavaScript clicks to interact with the
-    React-driven tabs.  Scrolls the section into view first to
-    ensure the elements are rendered.
+    Scrolls the full page first to trigger React lazy-loading, then
+    uses ``WebDriverWait`` to find ``#reactGeneralFeatures``.  Each
+    tab button is clicked via JavaScript and the visible content
+    items are collected using multiple CSS selector fallbacks.
 
     Args:
         driver: The Selenium WebDriver instance (already on the listing page).
@@ -912,36 +954,43 @@ def _extract_general_features(driver):
         ``Adicionais`` (semicolon-separated strings).
     """
     record = {}
+
+    _scroll_full_page(driver)
+
     try:
-        container = driver.find_element(By.ID, "reactGeneralFeatures")
-    except NoSuchElementException:
+        container = WebDriverWait(driver, 5).until(
+            expected_conditions.presence_of_element_located(
+                (By.ID, "reactGeneralFeatures"),
+            ),
+        )
+    except (TimeoutException, WebDriverException):
         return record
 
     driver.execute_script(
         "arguments[0].scrollIntoView({block:'center'});", container,
     )
-    time.sleep(0.5)
+    time.sleep(0.8)
 
     buttons = container.find_elements(By.TAG_NAME, "button")
+    if not buttons:
+        return record
+
     all_features = []
 
     for btn in buttons:
-        try:
-            label_el = btn.find_element(
-                By.CSS_SELECTOR, "span[class*='text-title']",
-            )
-            label = label_el.text.strip()
-        except NoSuchElementException:
-            label = ""
+        label = btn.text.strip()
+        if not label:
+            try:
+                label = btn.find_element(
+                    By.CSS_SELECTOR, "span",
+                ).text.strip()
+            except NoSuchElementException:
+                label = ""
 
         driver.execute_script("arguments[0].click();", btn)
-        time.sleep(0.5)
+        time.sleep(0.8)
 
-        spans = container.find_elements(
-            By.CSS_SELECTOR, "span[class*='description-text']",
-        )
-        items = [s.text.strip() for s in spans if s.text.strip()]
-
+        items = _read_tab_items(container, label)
         if not items:
             continue
 
@@ -955,7 +1004,7 @@ def _extract_general_features(driver):
             record["Areas_comuns"] = joined
 
     if all_features:
-        record["Adicionais"] = "; ".join(all_features)
+        record["Adicionais"] = "; ".join(dict.fromkeys(all_features))
 
     return record
 
@@ -1087,7 +1136,11 @@ def scrape_listing_details(driver, urls_df, logger):
                 for key, val in features.items():
                     if val and not record.get(key):
                         record[key] = val
-            except (WebDriverException, NoSuchElementException):
+            except (
+                WebDriverException,
+                NoSuchElementException,
+                TimeoutException,
+            ):
                 logger.debug("General features extraction failed: %s", url)
 
         batch_records.append(record)
