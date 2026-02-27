@@ -28,7 +28,12 @@ from pathlib import Path
 import pandas as pd
 import undetected_chromedriver as uc
 from bs4 import BeautifulSoup
-from selenium.common.exceptions import TimeoutException, WebDriverException
+from selenium.common.exceptions import (
+    NoSuchElementException,
+    TimeoutException,
+    WebDriverException,
+)
+from selenium.webdriver.common.by import By
 
 # =====================================================================================
 # Constants
@@ -260,7 +265,7 @@ def _create_driver(*, headless=False):
     if headless:
         options.add_argument("--headless=new")
 
-    driver = uc.Chrome(options=options)
+    driver = uc.Chrome(options=options, version_main=145)
     driver.set_page_load_timeout(PAGE_LOAD_TIMEOUT)
     return driver
 
@@ -673,6 +678,40 @@ def _extract_from_json_ld(json_ld):
     return {k: str(v) if v is not None else None for k, v in record.items()}
 
 
+def _extract_age(soup):
+    """Extract property age in years from the listing page.
+
+    Uses two strategies:
+    1. The ``<li class="icon-feature">`` containing an
+       ``<i class="icon-antiguedad">`` icon, with text like ``" 14 anos "``.
+    2. Full-page regex requiring qualifying keywords after "anos".
+
+    Args:
+        soup: A BeautifulSoup object of the listing page.
+
+    Returns:
+        The age as a string, or None if not found.
+    """
+    # Strategy 1: icon-antiguedad inside icon-feature li (most reliable).
+    # Captures both numeric ("14 anos") and text ("Breve Lançamento").
+    icon = soup.select_one("li.icon-feature i.icon-antiguedad")
+    if icon and icon.parent:
+        text = " ".join(icon.parent.stripped_strings)
+        if text:
+            return text
+
+    # Strategy 2: regex on full page text with qualifying keywords.
+    age_match = re.search(
+        r"(\d+)\s*anos?\s*(?:de\s*)?(?:constru|idade|antiguid)",
+        soup.get_text(),
+        re.IGNORECASE,
+    )
+    if age_match:
+        return age_match.group(1)
+
+    return None
+
+
 def _extract_from_html(soup):
     """Extract listing details from HTML as a fallback to JSON-LD.
 
@@ -737,15 +776,66 @@ def _extract_from_html(soup):
     if iptu_match:
         record["IPTU"] = iptu_match.group(1)
 
-    age_match = re.search(
-        r"(\d+)\s*anos?\s*(?:de\s*)?(?:constru|idade|antiguid)",
-        soup.get_text(),
-        re.IGNORECASE,
-    )
-    if age_match:
-        record["Idade_anos"] = age_match.group(1)
+    age = _extract_age(soup)
+    if age is not None:
+        record["Idade_anos"] = age
 
     return {k: str(v) if v is not None else None for k, v in record.items()}
+
+
+_FEATURE_PATTERNS = {
+    "N_quartos": r"(\d+)\s*(?:quartos?|dormit[oó]rios?|dorms?)",
+    "N_banheiros": r"(\d+)\s*(?:banheiros?|ba[nñ]os?|wc)",
+    "N_vagas": r"(\d+)\s*(?:vagas?|garagens?|estac)",
+    "Area_total_m2": r"(\d+[\.,]?\d*)\s*m[²2]\s*tot(?:ais?|al|\.)?",
+    "Area_util_m2": r"(\d+[\.,]?\d*)\s*m[²2]\s*[úu]t(?:eis|il)?",
+}
+
+# "Label BEFORE number" patterns (e.g. "Sup. total 120 m²").
+_LABEL_BEFORE_PATTERNS = {
+    "Area_total_m2": (
+        r"(?:sup(?:erf[ií]cie)?\.?\s*total|[áa]rea\s*total)"
+        r"\s*:?\s*(\d+[\.,]?\d*)\s*m[²2]"
+    ),
+    "Area_util_m2": (
+        r"(?:sup(?:erf[ií]cie)?\.?\s*[úu]til|[áa]rea\s*[úu]til)"
+        r"\s*:?\s*(\d+[\.,]?\d*)\s*m[²2]"
+    ),
+}
+
+
+def _search_patterns(text, patterns, record):
+    """Apply regex patterns to text and fill missing keys in record.
+
+    Args:
+        text: The text to search.
+        patterns: Dict mapping column names to regex patterns.
+        record: The mutable record dict to update.
+    """
+    for key, pattern in patterns.items():
+        if key not in record:
+            match = re.search(pattern, text, re.IGNORECASE)
+            if match:
+                record[key] = match.group(1).replace(",", ".")
+
+
+def _extract_area_from_icon(soup, icon_class):
+    """Extract an area value from an icon-feature ``<li>``.
+
+    Args:
+        soup: A BeautifulSoup object of the listing page.
+        icon_class: CSS class of the ``<i>`` icon (e.g. ``icon-stotal``).
+
+    Returns:
+        Area as a string (e.g. ``"244"``), or None if not found.
+    """
+    icon = soup.select_one(f"li.icon-feature i.{icon_class}")
+    if icon and icon.parent:
+        text = " ".join(icon.parent.stripped_strings)
+        match = re.search(r"(\d+[\.,]?\d*)\s*m[²2]", text)
+        if match:
+            return match.group(1).replace(",", ".")
+    return None
 
 
 def _extract_property_features(soup):
@@ -759,86 +849,41 @@ def _extract_property_features(soup):
         Area_total_m2, Area_util_m2.
     """
     record = {}
+
+    total = _extract_area_from_icon(soup, "icon-stotal")
+    if total:
+        record["Area_total_m2"] = total
+
+    useful = _extract_area_from_icon(soup, "icon-scubierta")
+    if useful:
+        record["Area_util_m2"] = useful
+
     full_text = soup.get_text(separator=" ")
 
-    patterns = {
-        "N_quartos": r"(\d+)\s*(?:quartos?|dormit[oó]rios?|dorms?)",
-        "N_banheiros": r"(\d+)\s*(?:banheiros?|ba[nñ]os?|wc)",
-        "N_vagas": r"(\d+)\s*(?:vagas?|garagens?|estac)",
-        "Area_total_m2": r"(\d+[\.,]?\d*)\s*m[²2]\s*(?:totais?|total)",
-        "Area_util_m2": r"(\d+[\.,]?\d*)\s*m[²2]\s*[úu]t(?:eis|il)?",
-    }
-
-    for key, pattern in patterns.items():
-        match = re.search(pattern, full_text, re.IGNORECASE)
-        if match:
-            record[key] = match.group(1).replace(",", ".")
+    _search_patterns(full_text, _FEATURE_PATTERNS, record)
+    _search_patterns(full_text, _LABEL_BEFORE_PATTERNS, record)
 
     if "Area_total_m2" not in record and "Area_util_m2" not in record:
-        area_match = re.search(r"(\d+[\.,]?\d*)\s*m[²2]", full_text, re.IGNORECASE)
-        if area_match:
-            record["Area_total_m2"] = area_match.group(1).replace(",", ".")
-
-    feature_spans = soup.select(
-        "li[data-qa] span, "
-        ".property-features li span, "
-        ".section-icon-features li"
-    )
-    for span in feature_spans:
-        text = span.get_text(strip=True).lower()
-        for key, pattern in patterns.items():
-            if key not in record:
-                match = re.search(pattern, text, re.IGNORECASE)
-                if match:
-                    record[key] = match.group(1).replace(",", ".")
+        h2 = soup.select_one("h2.title-type-sup-property")
+        if h2:
+            h2_text = h2.get_text(strip=True)
+            area_match = re.search(r"(\d+[\.,]?\d*)\s*m[²2]", h2_text)
+            if area_match:
+                record["Area_util_m2"] = area_match.group(1).replace(",", ".")
 
     return record
 
 
 def _extract_additional_details(soup):
-    """Extract text-heavy fields: amenities, common areas, description.
+    """Extract the floor plan image URL.
 
     Args:
         soup: A BeautifulSoup object of the listing page.
 
     Returns:
-        Dict with keys: Adicionais, Areas_comuns, Areas_privativas, Planta.
+        Dict with key ``Planta`` if found, otherwise empty.
     """
     record = {}
-
-    amenity_sections = soup.select(
-        "ul.section-amenities, "
-        "[data-qa='AMENITIES'], "
-        ".amenities-list, "
-        ".section-general-features ul"
-    )
-
-    all_amenities = []
-    for section in amenity_sections:
-        items = section.find_all("li")
-        all_amenities.extend(item.get_text(strip=True) for item in items)
-
-    if all_amenities:
-        record["Adicionais"] = "; ".join(all_amenities)
-
-    general_features = soup.select(
-        ".section-general-features li, "
-        "[data-qa='GENERAL_FEATURES'] li, "
-        ".general-features li"
-    )
-    if general_features:
-        record["Areas_comuns"] = "; ".join(
-            li.get_text(strip=True) for li in general_features
-        )
-
-    private_features = soup.select(
-        ".section-private-features li, "
-        "[data-qa='PRIVATE_FEATURES'] li"
-    )
-    if private_features:
-        record["Areas_privativas"] = "; ".join(
-            li.get_text(strip=True) for li in private_features
-        )
 
     planta_el = soup.select_one(
         "[data-qa='FLOOR_PLAN'], "
@@ -848,6 +893,69 @@ def _extract_additional_details(soup):
     )
     if planta_el:
         record["Planta"] = planta_el.get("src") or planta_el.get_text(strip=True)
+
+    return record
+
+
+def _extract_general_features(driver):
+    """Click each tab in "Saiba mais" and extract feature items.
+
+    Uses Selenium with JavaScript clicks to interact with the
+    React-driven tabs.  Scrolls the section into view first to
+    ensure the elements are rendered.
+
+    Args:
+        driver: The Selenium WebDriver instance (already on the listing page).
+
+    Returns:
+        Dict with keys ``Areas_comuns``, ``Areas_privativas``, and
+        ``Adicionais`` (semicolon-separated strings).
+    """
+    record = {}
+    try:
+        container = driver.find_element(By.ID, "reactGeneralFeatures")
+    except NoSuchElementException:
+        return record
+
+    driver.execute_script(
+        "arguments[0].scrollIntoView({block:'center'});", container,
+    )
+    time.sleep(0.5)
+
+    buttons = container.find_elements(By.TAG_NAME, "button")
+    all_features = []
+
+    for btn in buttons:
+        try:
+            label_el = btn.find_element(
+                By.CSS_SELECTOR, "span[class*='text-title']",
+            )
+            label = label_el.text.strip()
+        except NoSuchElementException:
+            label = ""
+
+        driver.execute_script("arguments[0].click();", btn)
+        time.sleep(0.5)
+
+        spans = container.find_elements(
+            By.CSS_SELECTOR, "span[class*='description-text']",
+        )
+        items = [s.text.strip() for s in spans if s.text.strip()]
+
+        if not items:
+            continue
+
+        joined = "; ".join(items)
+        all_features.extend(items)
+
+        label_lower = label.lower()
+        if "privativa" in label_lower:
+            record["Areas_privativas"] = joined
+        elif "comun" in label_lower or "comum" in label_lower:
+            record["Areas_comuns"] = joined
+
+    if all_features:
+        record["Adicionais"] = "; ".join(all_features)
 
     return record
 
@@ -973,6 +1081,14 @@ def scrape_listing_details(driver, urls_df, logger):
                 logger.exception("Error parsing listing: %s", url)
                 record = dict.fromkeys(OUTPUT_COLUMNS)
                 record["URL"] = url
+
+            try:
+                features = _extract_general_features(driver)
+                for key, val in features.items():
+                    if val and not record.get(key):
+                        record[key] = val
+            except (WebDriverException, NoSuchElementException):
+                logger.debug("General features extraction failed: %s", url)
 
         batch_records.append(record)
 
