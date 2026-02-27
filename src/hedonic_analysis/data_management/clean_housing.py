@@ -221,7 +221,6 @@ _AMENITY_PATTERNS: dict[str, re.Pattern[str]] = {
         r"|espa.o\s*kids|espa.o\s*crian.as",
         re.IGNORECASE,
     ),
-    "Elevator": re.compile(r"elevador", re.IGNORECASE),
 }
 
 # =====================================================================
@@ -274,6 +273,7 @@ _IQR_K = 3.0
 _COLUMNS_TO_DROP = (
     "Tipo",
     "Categoria",
+    "Category",
     "Adicionais",
     "Areas_comuns",
     "Areas_privativas",
@@ -596,17 +596,17 @@ def _extract_amenities(series):
     return pd.DataFrame(frames, index=series.index)
 
 
-def _create_count_dummies(df, col, prefix, max_val):
+def _create_count_dummies(df, col, prefix, max_val, ref=1):
     """Create dummy variables from a numeric count column.
-
-    The reference category is value 1 (or 0 for parking).
-    The last dummy captures *max_val + 1* or more.
 
     Args:
         df: DataFrame to modify.
         col: Name of the count column.
         prefix: Prefix for dummy column names (e.g. ``BEDROOM_``).
         max_val: Number of dummy columns to create.
+        ref: Reference category value (all dummies = 0 when count <= ref).
+            Use ``ref=1`` for bedrooms/bathrooms (1 is the baseline),
+            or ``ref=0`` for parking (0 is the baseline).
 
     Returns:
         DataFrame with new dummy columns appended.
@@ -617,11 +617,11 @@ def _create_count_dummies(df, col, prefix, max_val):
     for i in range(1, max_val + 1):
         if i == max_val:
             df[f"{prefix}{i}"] = (
-                counts >= i + 1
+                counts >= ref + i
             ).astype(pd.Int8Dtype())
         else:
             df[f"{prefix}{i}"] = (
-                counts == i + 1
+                counts == ref + i
             ).astype(pd.Int8Dtype())
     return df
 
@@ -768,19 +768,27 @@ def clean_housing(raw_df):
     df = df[df["Endereco"].str.strip().ne("")]
     df = df[df["Endereco"].str.contains(r"\d", na=False)]
 
+    df["Area_util_m2"] = df["Area_util_m2"].fillna(df["Area_total_m2"])
+    df["Area_total_m2"] = df["Area_total_m2"].fillna(df["Area_util_m2"])
     df = df.dropna(subset=["Area_util_m2", "Preco"])
 
     offplan_desc = _detect_offplan(df["Descricao"])
     offplan_age = _detect_offplan(df["Idade_anos"])
     df["Offplan"] = ((offplan_desc == 1) | (offplan_age == 1)).astype(pd.Int8Dtype())
 
-    amenities = _extract_amenities(df["Descricao"])
+    combined_text = (
+        df["Descricao"].fillna("")
+        + " " + df["Areas_comuns"].fillna("")
+        + " " + df["Areas_privativas"].fillna("")
+    )
+    amenities = _extract_amenities(combined_text)
     df = pd.concat([df, amenities], axis=1)
 
-    df = _create_count_dummies(df, "N_quartos", "BEDROOM_", 4)
-    df = _create_count_dummies(df, "N_banheiros", "BATHROOM_", 4)
-    df = _create_count_dummies(df, "N_vagas", "PARKING_", 2)
+    df = _create_count_dummies(df, "N_quartos", "BEDROOM_", 4, ref=0)
+    df = _create_count_dummies(df, "N_banheiros", "BATHROOM_", 4, ref=0)
+    df = _create_count_dummies(df, "N_vagas", "PARKING_", 2, ref=0)
 
+    df = df[df["Idade_anos"].fillna("").astype(str).str.strip().ne("")]
     df = _cast_numeric_columns(df)
     df["Outlier"] = _detect_outliers(df)
     df = df.drop(columns=list(_COLUMNS_TO_DROP), errors="ignore")
@@ -790,9 +798,23 @@ def clean_housing(raw_df):
 
     df = df.rename(columns=_COLUMN_RENAME)
     df.columns = df.columns.str.lower()
+    df = df.rename(columns={
+        "bedroom_1": "Bedroom (1)",
+        "bedroom_2": "Bedroom (2)",
+        "bedroom_3": "Bedroom (3)",
+        "bedroom_4": "Bedroom (4+)",
+        "bathroom_1": "Bathroom (1)",
+        "bathroom_2": "Bathroom (2)",
+        "bathroom_3": "Bathroom (3)",
+        "bathroom_4": "Bathroom (4+)",
+        "parking_1": "Parking (1 spot)",
+        "parking_2": "Parking (2+ spots)",
+    })
 
     if "url" in df.columns:
         cols = [c for c in df.columns if c != "url"] + ["url"]
         df = df[cols]
 
-    return df.reset_index(drop=True)
+    df = df.reset_index(drop=True)
+    df.insert(0, "id", range(1, len(df) + 1))
+    return df

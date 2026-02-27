@@ -13,7 +13,8 @@ def task_clean_housing(
     data=SRC / "data" / "imovelweb_raw.csv",
     produces=BLD_DATA / "housing_cleaned.parquet",
 ):
-    """Clean raw scraped data and save as parquet."""
+    """Clean raw scraped data and save as parquet and xlsx."""
     raw = pd.read_csv(data, encoding="utf-8-sig")
     cleaned = clean_housing(raw)
     cleaned.to_parquet(produces)
+    cleaned.to_excel(produces.with_suffix(".xlsx"), index=False)

@@ -66,7 +66,7 @@ def raw_df_minimal():
                 "vendaR$ 350.000Me avisar",
             ],
             "IPTU": [None, None, None],
-            "Idade_anos": [None, None, None],
+            "Idade_anos": ["10\n\t\t anos", "Breve Lançamento", "5\n\t\t anos"],
             "Adicionais": [None, None, None],
             "Areas_comuns": [None, None, None],
             "Areas_privativas": [None, None, None],
@@ -268,11 +268,6 @@ def test_extract_amenities_returns_correct_column_count():
     assert len(got.columns) == len(_AMENITY_PATTERNS)
 
 
-def test_extract_amenities_elevator_detected():
-    series = pd.Series(["Prédio com elevador social"])
-    got = _extract_amenities(series)
-    assert got["Elevator"].iloc[0] == 1
-
 
 # ------------------------------------------------------------------ #
 # _detect_offplan
@@ -427,13 +422,6 @@ def test_clean_housing_neighborhood_is_categorical(raw_df_minimal):
     )
 
 
-def test_clean_housing_category_is_categorical(raw_df_minimal):
-    result = clean_housing(raw_df_minimal)
-    assert isinstance(
-        result["category"].dtype, pd.CategoricalDtype,
-    )
-
-
 def test_clean_housing_price_is_float32(raw_df_minimal):
     result = clean_housing(raw_df_minimal)
     assert result["price"].dtype == pd.Float32Dtype()
@@ -445,7 +433,6 @@ def test_clean_housing_amenity_columns_present(raw_df_minimal):
         "party_room", "game_room", "gym", "pool",
         "sauna", "bbq", "gourmet_space", "sports_court",
         "guardhouse", "cameras", "balcony", "playground",
-        "elevator",
     ]
     for col in expected_amenities:
         assert col in result.columns
@@ -453,13 +440,13 @@ def test_clean_housing_amenity_columns_present(raw_df_minimal):
 
 def test_clean_housing_dummy_columns_present(raw_df_minimal):
     result = clean_housing(raw_df_minimal)
-    for prefix, n in [
-        ("bedroom_", 4),
-        ("bathroom_", 4),
-        ("parking_", 2),
-    ]:
-        for i in range(1, n + 1):
-            assert f"{prefix}{i}" in result.columns
+    expected = [
+        "Bedroom (1)", "Bedroom (2)", "Bedroom (3)", "Bedroom (4+)",
+        "Bathroom (1)", "Bathroom (2)", "Bathroom (3)", "Bathroom (4+)",
+        "Parking (1 spot)", "Parking (2+ spots)",
+    ]
+    for col in expected:
+        assert col in result.columns
 
 
 def test_clean_housing_outlier_column_present(raw_df_minimal):
