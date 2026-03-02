@@ -51,8 +51,8 @@ LOG_FILE = _DATA_DIR / "scraper.log"
 BASE_URL = "https://www.imovelweb.com.br"
 PROPERTY_TYPES = ("apartamentos", "casas")
 MAX_PAGES = 5
-MIN_DELAY = 2.0
-MAX_DELAY = 5.0
+MIN_DELAY = 1.0
+MAX_DELAY = 3.0
 PAGE_LOAD_TIMEOUT = 30
 MAX_RETRIES = 3
 BATCH_SIZE = 50
@@ -900,14 +900,16 @@ def _extract_additional_details(soup):
 
 
 def _scroll_full_page(driver):
-    """Scroll the entire page to trigger lazy-loaded React sections."""
+    """Scroll the page in a few large jumps to trigger lazy loading."""
     try:
         page_height = driver.execute_script(
             "return document.body.scrollHeight",
         )
-        for pos in range(0, page_height, 600):
-            driver.execute_script(f"window.scrollTo(0, {pos});")
-            time.sleep(0.15)
+        for fraction in (0.33, 0.66, 1.0):
+            driver.execute_script(
+                f"window.scrollTo(0, {int(page_height * fraction)});",
+            )
+            time.sleep(0.3)
     except WebDriverException:
         pass
 
@@ -958,7 +960,7 @@ def _extract_general_features(driver):
     _scroll_full_page(driver)
 
     try:
-        container = WebDriverWait(driver, 5).until(
+        container = WebDriverWait(driver, 3).until(
             expected_conditions.presence_of_element_located(
                 (By.ID, "reactGeneralFeatures"),
             ),
@@ -969,7 +971,7 @@ def _extract_general_features(driver):
     driver.execute_script(
         "arguments[0].scrollIntoView({block:'center'});", container,
     )
-    time.sleep(0.8)
+    time.sleep(0.5)
 
     buttons = container.find_elements(By.TAG_NAME, "button")
     if not buttons:
@@ -988,7 +990,7 @@ def _extract_general_features(driver):
                 label = ""
 
         driver.execute_script("arguments[0].click();", btn)
-        time.sleep(0.8)
+        time.sleep(0.5)
 
         items = _read_tab_items(container, label)
         if not items:
