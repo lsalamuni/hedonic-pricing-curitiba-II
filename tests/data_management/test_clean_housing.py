@@ -441,9 +441,9 @@ def test_clean_housing_amenity_columns_present(raw_df_minimal):
 def test_clean_housing_dummy_columns_present(raw_df_minimal):
     result = clean_housing(raw_df_minimal)
     expected = [
-        "Bedroom (1)", "Bedroom (2)", "Bedroom (3)", "Bedroom (4+)",
-        "Bathroom (1)", "Bathroom (2)", "Bathroom (3)", "Bathroom (4+)",
-        "Parking (1 spot)", "Parking (2+ spots)",
+        "bedroom_1", "bedroom_2", "bedroom_3", "bedroom_4",
+        "bathroom_1", "bathroom_2", "bathroom_3", "bathroom_4",
+        "parking_1", "parking_2",
     ]
     for col in expected:
         assert col in result.columns

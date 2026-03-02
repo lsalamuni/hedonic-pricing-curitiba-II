@@ -802,18 +802,6 @@ def clean_housing(raw_df):
 
     df = df.rename(columns=_COLUMN_RENAME)
     df.columns = df.columns.str.lower()
-    df = df.rename(columns={
-        "bedroom_1": "Bedroom (1)",
-        "bedroom_2": "Bedroom (2)",
-        "bedroom_3": "Bedroom (3)",
-        "bedroom_4": "Bedroom (4+)",
-        "bathroom_1": "Bathroom (1)",
-        "bathroom_2": "Bathroom (2)",
-        "bathroom_3": "Bathroom (3)",
-        "bathroom_4": "Bathroom (4+)",
-        "parking_1": "Parking (1 spot)",
-        "parking_2": "Parking (2+ spots)",
-    })
 
     if "url" in df.columns:
         cols = [c for c in df.columns if c != "url"] + ["url"]
