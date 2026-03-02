@@ -771,6 +771,10 @@ def clean_housing(raw_df):
     df["Area_util_m2"] = df["Area_util_m2"].fillna(df["Area_total_m2"])
     df["Area_total_m2"] = df["Area_total_m2"].fillna(df["Area_util_m2"])
     df = df.dropna(subset=["Area_util_m2", "Preco"])
+    df = df.drop_duplicates(
+        subset=["Endereco", "Bairro", "Preco", "Area_util_m2", "Area_total_m2"],
+        keep="first",
+    )
 
     offplan_desc = _detect_offplan(df["Descricao"])
     offplan_age = _detect_offplan(df["Idade_anos"])
