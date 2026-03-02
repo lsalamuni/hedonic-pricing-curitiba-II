@@ -644,7 +644,7 @@ def _cast_numeric_columns(df):
             r"(\d+)", expand=False,
         ),
         errors="coerce",
-    ).astype(pd.Int16Dtype())
+    ).fillna(0).astype(pd.Int16Dtype())
     return df
 
 
