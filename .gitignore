@@ -1,5 +1,6 @@
 # Data files
 *.parquet
+!src/hedonic_analysis/data/geocode_cache.parquet
 *.pkl
 
 # Distribution / packaging
