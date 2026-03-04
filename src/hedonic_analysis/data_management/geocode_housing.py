@@ -153,8 +153,8 @@ def geocode_housing(
     cache_df = _load_cache(cache_path)
 
     # Identify uncached rows
-    cached_ids = set(cache_df["id"].tolist())
-    mask_uncached = ~df["id"].isin(cached_ids)
+    cached_ids_set = set(cache_df["id"].tolist())
+    mask_uncached = ~df["id"].isin(cached_ids_set)
     uncached_addrs = full_address[mask_uncached]
     uncached_ids = df.loc[mask_uncached, "id"]
 
