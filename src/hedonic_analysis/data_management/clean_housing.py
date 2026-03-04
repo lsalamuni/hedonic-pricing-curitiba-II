@@ -224,6 +224,18 @@ _AMENITY_PATTERNS: dict[str, re.Pattern[str]] = {
 }
 
 # =====================================================================
+# Street type corrections (wrong prefix assigned by the default rule)
+# =====================================================================
+
+_STREET_TYPE_CORRECTIONS: dict[str, str] = {
+    "Rua Vicente Machado": "Avenida Vicente Machado",
+    "Rua Silva Jardim": "Avenida Silva Jardim",
+    "Rua Visconde de Guarapuava": "Avenida Visconde de Guarapuava",
+    "Rua Prudente de Moraes": "Alameda Prudente de Moraes",
+    "Rua Cabral": "Alameda Cabral",
+}
+
+# =====================================================================
 # Address patterns
 # =====================================================================
 
@@ -241,7 +253,7 @@ _KNOWN_TYPES_PATTERN = re.compile(
 )
 
 # =====================================================================
-# Column rename mapping (Portuguese → English lowercase)
+# Column rename mapping (Portuguese -> English lowercase)
 # =====================================================================
 
 _COLUMN_RENAME = {
@@ -478,8 +490,8 @@ def _smart_title(text):
 def _clean_endereco(series):
     """Standardize address strings.
 
-    Expands abbreviations (R. → Rua, Av. → Avenida, Al. → Alameda,
-    Tv. → Travessa), applies title case to ALL-CAPS addresses, adds
+    Expands abbreviations (R. -> Rua, Av. -> Avenida, Al. -> Alameda,
+    Tv. -> Travessa), applies title case to ALL-CAPS addresses, adds
     'Rua' prefix when no street type is present, and inserts a comma
     before the house number.
 
@@ -545,6 +557,9 @@ def _clean_endereco(series):
         _KNOWN_TYPES_PATTERN, na=True,
     )
     s = s.where(has_type, "Rua " + s)
+
+    for wrong, correct in _STREET_TYPE_CORRECTIONS.items():
+        s = s.str.replace(wrong, correct, regex=False)
 
     s = s.str.replace(
         r"(?<!,)\s+(\d+)\s*$", r", \1", regex=True,
