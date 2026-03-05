@@ -18,6 +18,7 @@ repos:
       - id: check-added-large-files
         args: [--maxkb=25]
       - id: check-ast
+        language_version: python3.14
       - id: check-case-conflict
       - id: check-docstring-first
       - id: check-merge-conflict
@@ -25,6 +26,7 @@ repos:
       - id: check-vcs-permalinks
       - id: check-yaml
       - id: debug-statements
+        language_version: python3.14
       - id: end-of-file-fixer
       - id: fix-byte-order-marker
         types: [text]
@@ -41,7 +43,6 @@ repos:
     rev: v1.38.0
     hooks:
       - id: yamllint
-        exclude: ^(docs_template/\.readthedocs.yaml)$
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.14.14
     hooks:

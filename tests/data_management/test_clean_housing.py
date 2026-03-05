@@ -268,7 +268,6 @@ def test_extract_amenities_returns_correct_column_count():
     assert len(got.columns) == len(_AMENITY_PATTERNS)
 
 
-
 # ------------------------------------------------------------------ #
 # _detect_offplan
 # ------------------------------------------------------------------ #
@@ -342,7 +341,8 @@ def test_detect_outliers_extreme_price_flagged():
                 dtype=pd.Float32Dtype(),
             ),
             "Area_util_m2": pd.array(
-                [80, 90, 100], dtype=pd.Float32Dtype(),
+                [80, 90, 100],
+                dtype=pd.Float32Dtype(),
             ),
         },
     )
@@ -358,7 +358,8 @@ def test_detect_outliers_normal_values_not_flagged():
                 dtype=pd.Float32Dtype(),
             ),
             "Area_util_m2": pd.array(
-                [70, 80, 90], dtype=pd.Float32Dtype(),
+                [70, 80, 90],
+                dtype=pd.Float32Dtype(),
             ),
         },
     )
@@ -406,11 +407,23 @@ def test_clean_housing_returns_dataframe(raw_df_minimal):
 def test_clean_housing_no_dropped_columns_remain(raw_df_minimal):
     result = clean_housing(raw_df_minimal)
     forbidden = {
-        "URL", "Tipo", "Categoria", "Adicionais",
-        "Areas_comuns", "Areas_privativas", "Descricao",
-        "Planta", "IPTU", "Idade_anos", "Area_total_m2",
-        "N_quartos", "N_banheiros", "N_vagas",
-        "Endereco", "Bairro", "Preco",
+        "URL",
+        "Tipo",
+        "Categoria",
+        "Adicionais",
+        "Areas_comuns",
+        "Areas_privativas",
+        "Descricao",
+        "Planta",
+        "IPTU",
+        "Idade_anos",
+        "Area_total_m2",
+        "N_quartos",
+        "N_banheiros",
+        "N_vagas",
+        "Endereco",
+        "Bairro",
+        "Preco",
     }
     assert forbidden.isdisjoint(set(result.columns))
 
@@ -418,7 +431,8 @@ def test_clean_housing_no_dropped_columns_remain(raw_df_minimal):
 def test_clean_housing_neighborhood_is_categorical(raw_df_minimal):
     result = clean_housing(raw_df_minimal)
     assert isinstance(
-        result["neighborhood"].dtype, pd.CategoricalDtype,
+        result["neighborhood"].dtype,
+        pd.CategoricalDtype,
     )
 
 
@@ -430,9 +444,18 @@ def test_clean_housing_price_is_float32(raw_df_minimal):
 def test_clean_housing_amenity_columns_present(raw_df_minimal):
     result = clean_housing(raw_df_minimal)
     expected_amenities = [
-        "party_room", "game_room", "gym", "pool",
-        "sauna", "bbq", "gourmet_space", "sports_court",
-        "guardhouse", "cameras", "balcony", "playground",
+        "party_room",
+        "game_room",
+        "gym",
+        "pool",
+        "sauna",
+        "bbq",
+        "gourmet_space",
+        "sports_court",
+        "guardhouse",
+        "cameras",
+        "balcony",
+        "playground",
     ]
     for col in expected_amenities:
         assert col in result.columns
@@ -441,9 +464,16 @@ def test_clean_housing_amenity_columns_present(raw_df_minimal):
 def test_clean_housing_dummy_columns_present(raw_df_minimal):
     result = clean_housing(raw_df_minimal)
     expected = [
-        "bedroom_1", "bedroom_2", "bedroom_3", "bedroom_4",
-        "bathroom_1", "bathroom_2", "bathroom_3", "bathroom_4",
-        "parking_1", "parking_2",
+        "bedroom_1",
+        "bedroom_2",
+        "bedroom_3",
+        "bedroom_4",
+        "bathroom_1",
+        "bathroom_2",
+        "bathroom_3",
+        "bathroom_4",
+        "parking_1",
+        "parking_2",
     ]
     for col in expected:
         assert col in result.columns

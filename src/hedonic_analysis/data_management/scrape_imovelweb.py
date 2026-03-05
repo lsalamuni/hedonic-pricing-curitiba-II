@@ -417,7 +417,8 @@ def _extract_listing_urls(page_source):
     soup = BeautifulSoup(page_source, "html.parser")
 
     urls = _collect_urls_by_selector(
-        soup, "a[data-qa='POSTING_CARD_DESCRIPTION']",
+        soup,
+        "a[data-qa='POSTING_CARD_DESCRIPTION']",
     )
     if urls:
         return urls
@@ -432,7 +433,9 @@ def _extract_listing_urls(page_source):
         return urls
 
     return _collect_urls_by_selector(
-        soup, "a[href*='/propriedades/']", filter_propriedades=True,
+        soup,
+        "a[href*='/propriedades/']",
+        filter_propriedades=True,
     )
 
 
@@ -451,11 +454,7 @@ def _has_next_page(page_source, current_page):
 
     soup = BeautifulSoup(page_source, "html.parser")
 
-    next_link = soup.select_one(
-        "a[data-qa='PAGING_NEXT'], "
-        "li.next a, "
-        "a.paging-next"
-    )
+    next_link = soup.select_one("a[data-qa='PAGING_NEXT'], li.next a, a.paging-next")
     return next_link is not None
 
 
@@ -577,7 +576,10 @@ def collect_listing_urls(driver, logger):
                 continue
 
             batch_records = _scrape_neighborhood_urls(
-                driver, logger, prop_type, neighborhood,
+                driver,
+                logger,
+                prop_type,
+                neighborhood,
             )
 
             if batch_records:
@@ -626,7 +628,7 @@ def _extract_json_ld(page_source):
     for script in soup.find_all("script", type="application/ld+json"):
         try:
             data = json.loads(script.string)
-        except (json.JSONDecodeError, TypeError):
+        except json.JSONDecodeError, TypeError:
             continue
 
         if isinstance(data, list):
@@ -924,10 +926,7 @@ def _read_tab_items(container, label):
         "li",
     ):
         spans = container.find_elements(By.CSS_SELECTOR, selector)
-        items = [
-            s.text.strip() for s in spans
-            if s.is_displayed() and s.text.strip()
-        ]
+        items = [s.text.strip() for s in spans if s.is_displayed() and s.text.strip()]
         if items:
             break
 
@@ -965,11 +964,12 @@ def _extract_general_features(driver):
                 (By.ID, "reactGeneralFeatures"),
             ),
         )
-    except (TimeoutException, WebDriverException):
+    except TimeoutException, WebDriverException:
         return record
 
     driver.execute_script(
-        "arguments[0].scrollIntoView({block:'center'});", container,
+        "arguments[0].scrollIntoView({block:'center'});",
+        container,
     )
     time.sleep(0.5)
 
@@ -984,7 +984,8 @@ def _extract_general_features(driver):
         if not label:
             try:
                 label = btn.find_element(
-                    By.CSS_SELECTOR, "span",
+                    By.CSS_SELECTOR,
+                    "span",
                 ).text.strip()
             except NoSuchElementException:
                 label = ""
@@ -1062,9 +1063,12 @@ def _parse_listing_page(page_source, url):
     for name, extractor in extractors:
         try:
             result = extractor()
-        except (AttributeError, KeyError, TypeError, ValueError):
+        except AttributeError, KeyError, TypeError, ValueError:
             logger.debug(
-                "Extractor '%s' failed for %s", name, url, exc_info=True,
+                "Extractor '%s' failed for %s",
+                name,
+                url,
+                exc_info=True,
             )
             continue
         if result is not None:

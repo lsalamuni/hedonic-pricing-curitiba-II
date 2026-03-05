@@ -7,6 +7,7 @@ fallback), and returns the DataFrame with latitude/longitude columns added.
 
 from __future__ import annotations
 
+import logging
 import time
 from pathlib import Path
 
@@ -19,6 +20,8 @@ from geopy.geocoders import ArcGIS, Nominatim
 
 _CITY_SUFFIX: str = "Curitiba, Paraná, Brazil"
 _USER_AGENT: str = "hedonic_analysis_geocoder"
+
+_logger = logging.getLogger(__name__)
 
 _NOMINATIM_BATCH_SIZE: int = 50
 _ARCGIS_BATCH_SIZE: int = 25
@@ -33,8 +36,10 @@ _ARCGIS_DELAY: float = 3.0
 def _build_full_address(df: pd.DataFrame) -> pd.Series:
     """Concatenate address, neighborhood, and city into a full address."""
     return (
-        df["address"].astype(str) + ", "
-        + df["neighborhood"].astype(str) + ", "
+        df["address"].astype(str)
+        + ", "
+        + df["neighborhood"].astype(str)
+        + ", "
         + _CITY_SUFFIX
     )
 
@@ -43,11 +48,13 @@ def _load_cache(path: Path | None) -> pd.DataFrame:
     """Load geocoding cache from parquet, or return an empty DataFrame."""
     if path is not None and path.exists():
         return pd.read_parquet(path)
-    return pd.DataFrame({
-        "id": pd.Series(dtype="int64"),
-        "latitude": pd.Series(dtype="float64"),
-        "longitude": pd.Series(dtype="float64"),
-    })
+    return pd.DataFrame(
+        {
+            "id": pd.Series(dtype="int64"),
+            "latitude": pd.Series(dtype="float64"),
+            "longitude": pd.Series(dtype="float64"),
+        }
+    )
 
 
 def _save_cache(cache_df: pd.DataFrame, path: Path | None) -> None:
@@ -86,7 +93,7 @@ def _geocode_with_service(
         for addr in batch_addrs:
             try:
                 location = geocoder.geocode(addr, timeout=10)
-            except Exception:
+            except ValueError, OSError, TimeoutError:
                 location = None
 
             if location is not None:
@@ -97,11 +104,13 @@ def _geocode_with_service(
                 lons.append(None)
             time.sleep(delay)
 
-        batch_result = pd.DataFrame({
-            "id": batch_ids.to_numpy(),
-            "latitude": lats,
-            "longitude": lons,
-        })
+        batch_result = pd.DataFrame(
+            {
+                "id": batch_ids.to_numpy(),
+                "latitude": lats,
+                "longitude": lons,
+            }
+        )
 
         successful = batch_result.dropna(subset=["latitude"])
         if not successful.empty:
@@ -112,9 +121,13 @@ def _geocode_with_service(
             _save_cache(cache_df, cache_path)
 
         geocoded_so_far = cache_df["latitude"].notna().sum()
-        print(
-            f"  [{stage_name}] Rows {start + 1} to {end} of {n_total}. "
-            f"Progress: {geocoded_so_far} geocoded successfully."
+        _logger.info(
+            "  [%s] Rows %d to %d of %d. Progress: %d geocoded successfully.",
+            stage_name,
+            start + 1,
+            end,
+            n_total,
+            geocoded_so_far,
         )
 
     return cache_df
@@ -160,9 +173,8 @@ def geocode_housing(
 
     # Stage 1: Nominatim (OSM)
     if not uncached_addrs.empty:
-        print(
-            f"Stage 1 (Nominatim): {len(uncached_addrs)} addresses to geocode."
-        )
+        n = len(uncached_addrs)
+        _logger.info("Stage 1 (Nominatim): %d addresses to geocode.", n)
         nominatim = Nominatim(user_agent=_USER_AGENT)
         cache_df = _geocode_with_service(
             geocoder=nominatim,
@@ -182,9 +194,7 @@ def geocode_housing(
     missing_ids = df.loc[mask_still_missing, "id"]
 
     if not missing_addrs.empty:
-        print(
-            f"Stage 2 (ArcGIS): {len(missing_addrs)} addresses to retry."
-        )
+        _logger.info("Stage 2 (ArcGIS): %d addresses to retry.", len(missing_addrs))
         arcgis = ArcGIS()
         cache_df = _geocode_with_service(
             geocoder=arcgis,
@@ -204,8 +214,8 @@ def geocode_housing(
     total = len(result)
     geocoded = result["latitude"].notna().sum()
     failed = total - geocoded
-    print(f"Done! Geocoded {geocoded} of {total} addresses.")
+    _logger.info("Done! Geocoded %d of %d addresses.", geocoded, total)
     if failed > 0:
-        print(f"Failed: {failed} addresses.")
+        _logger.info("Failed: %d addresses.", failed)
 
     return result

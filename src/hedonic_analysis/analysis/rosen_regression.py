@@ -175,12 +175,15 @@ def _conley_regression(
     k = len(beta)
     p_val = 2 * (1 - t_dist.cdf(np.abs(t_stat), df=n - k))
 
-    return pd.DataFrame({
-        "coefficient": beta,
-        "std_error": se,
-        "t_value": t_stat,
-        "p_value": p_val,
-    }, index=names)
+    return pd.DataFrame(
+        {
+            "coefficient": beta,
+            "std_error": se,
+            "t_value": t_stat,
+            "p_value": p_val,
+        },
+        index=names,
+    )
 
 
 # ------------------------------------------------------------------ #
@@ -214,10 +217,12 @@ def _compute_vif(x_df: pd.DataFrame) -> pd.DataFrame:
             continue
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", RuntimeWarning)
-            vif_data.append({
-                "variable": name,
-                "vif": variance_inflation_factor(x_with_const.values, i),
-            })
+            vif_data.append(
+                {
+                    "variable": name,
+                    "vif": variance_inflation_factor(x_with_const.values, i),
+                }
+            )
     return pd.DataFrame(vif_data)
 
 
@@ -243,7 +248,7 @@ def _run_moran_test(
     # Moran's I
     z = residuals - residuals.mean()
     numerator = (z[:, np.newaxis] * z[np.newaxis, :] * w).sum()
-    denominator = (z ** 2).sum()
+    denominator = (z**2).sum()
     s0 = w.sum()
     moran_i = (n / s0) * (numerator / denominator)
 
@@ -253,13 +258,13 @@ def _run_moran_test(
     s1 = 0.5 * ((w + w.T) ** 2).sum()
     s2 = ((w.sum(axis=1) + w.sum(axis=0)) ** 2).sum()
 
-    k = (1.0 / n) * ((z ** 4).sum() / ((z ** 2).sum() / n) ** 2)
+    k = (1.0 / n) * ((z**4).sum() / ((z**2).sum() / n) ** 2)
 
-    a = n * ((n ** 2 - 3 * n + 3) * s1 - n * s2 + 3 * s0 ** 2)
-    b = k * ((n ** 2 - n) * s1 - 2 * n * s2 + 6 * s0 ** 2)
-    c = (n - 1) * (n - 2) * (n - 3) * s0 ** 2
+    a = n * ((n**2 - 3 * n + 3) * s1 - n * s2 + 3 * s0**2)
+    b = k * ((n**2 - n) * s1 - 2 * n * s2 + 6 * s0**2)
+    c = (n - 1) * (n - 2) * (n - 3) * s0**2
 
-    var_i = (a - b) / c - e_i ** 2
+    var_i = (a - b) / c - e_i**2
 
     z_score = (moran_i - e_i) / np.sqrt(var_i)
     p_value = 2 * (1 - norm.cdf(np.abs(z_score)))
@@ -304,11 +309,18 @@ def _prepare_first_stage(tier_df: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series
         df[col] = df[col].replace(-np.inf, 0)
 
     # Drop columns not used in first-stage regression
-    extra_drop = ["id", "url", "URL", "Outlier", "outlier", "address",
-                  "tier", "category", "final_score"]
-    cols_to_drop = [
-        c for c in [*_FIRST_STAGE_DROP, *extra_drop] if c in df.columns
+    extra_drop = [
+        "id",
+        "url",
+        "URL",
+        "Outlier",
+        "outlier",
+        "address",
+        "tier",
+        "category",
+        "final_score",
     ]
+    cols_to_drop = [c for c in [*_FIRST_STAGE_DROP, *extra_drop] if c in df.columns]
 
     df = df.drop(columns=cols_to_drop, errors="ignore")
 
@@ -331,15 +343,17 @@ def _build_second_stage_x(
     tier_name: str,
 ) -> pd.DataFrame:
     """Build second-stage regressor matrix with log-transformed continuous vars."""
-    location_binary = (
-        _LOCATION_BINARY_HIGH if tier_name == "high" else _LOCATION_BINARY
-    )
+    location_binary = _LOCATION_BINARY_HIGH if tier_name == "high" else _LOCATION_BINARY
 
     # Intrinsic continuous (log)
-    x_parts = [pd.DataFrame({
-        "log_total_area_m2": np.log(tier_df["total_area_m2"].astype(float)),
-        "log_age_years": np.log(tier_df["age_years"].astype(float) + 1),
-    })]
+    x_parts = [
+        pd.DataFrame(
+            {
+                "log_total_area_m2": np.log(tier_df["total_area_m2"].astype(float)),
+                "log_age_years": np.log(tier_df["age_years"].astype(float) + 1),
+            }
+        )
+    ]
 
     # Intrinsic binary
     intrinsic = [c for c in _INTRINSIC_BINARY if c in tier_df.columns]
@@ -419,8 +433,13 @@ def _plot_boxcox(
 
     fig, ax = plt.subplots(figsize=(7, 5))
     ax.plot(lambdas, llf, color="#4682B4", linewidth=1.5)
-    ax.axvline(opt_lambda, color="red", linestyle="--", linewidth=0.8,
-               label=f"Optimal \u03bb = {opt_lambda:.2f}")
+    ax.axvline(
+        opt_lambda,
+        color="red",
+        linestyle="--",
+        linewidth=0.8,
+        label=f"Optimal \u03bb = {opt_lambda:.2f}",
+    )
     ax.set_xlabel("\u03bb")
     ax.set_ylabel("Log-Likelihood")
     ax.set_title(f"Box-Cox Transformation ({tier_name.title()} Tier)")
@@ -438,8 +457,7 @@ def _plot_boxcox(
 
 
 _SIG_FOOTNOTE = (
-    "\\textit{Signif. codes:} "
-    "*** $p<0.001$, ** $p<0.01$, * $p<0.05$, . $p<0.1$"
+    "\\textit{Signif. codes:} *** $p<0.001$, ** $p<0.01$, * $p<0.05$, . $p<0.1$"
 )
 
 _SIG_THRESHOLDS: tuple[tuple[float, str], ...] = (
@@ -506,8 +524,7 @@ def _coef_table_to_latex(
     )
     # Insert significance footnote before \end{table}
     if _SIG_FOOTNOTE not in latex and any(
-        c for c in starred.columns
-        if c == "coefficient" or c.endswith("_coef")
+        c for c in starred.columns if c == "coefficient" or c.endswith("_coef")
     ):
         latex = latex.replace(
             "\\end{table}",
@@ -645,9 +662,9 @@ def _run_wald_test(
     Pools all tiers, fits an unrestricted model with tier interactions on
     Total_area_m2 and Age_years, and tests H0: all tier interactions = 0.
     """
-    pooled = pd.concat([
-        tiers[t].assign(tier=t) for t in ("low", "mid", "high")
-    ], ignore_index=True)
+    pooled = pd.concat(
+        [tiers[t].assign(tier=t) for t in ("low", "mid", "high")], ignore_index=True
+    )
 
     mask = pooled["latitude"].notna() & pooled["longitude"].notna()
     pooled = pooled[mask].copy()
@@ -671,8 +688,13 @@ def _run_wald_test(
 
     # Build regressor matrix
     x_cols = [
-        "tier_mid", "tier_high", "log_area", "log_age",
-        "tier_mid_area", "tier_high_area", "tier_mid_age",
+        "tier_mid",
+        "tier_high",
+        "log_area",
+        "log_age",
+        "tier_mid_area",
+        "tier_high_area",
+        "tier_mid_age",
         "tier_high_age",
         *_INTRINSIC_BINARY,
     ]
@@ -686,9 +708,7 @@ def _run_wald_test(
     result = model.fit(cov_type="HC3")
 
     # Test H0: all tier interaction terms = 0
-    interaction_terms = [
-        c for c in x_with_const.columns if c.startswith("tier_")
-    ]
+    interaction_terms = [c for c in x_with_const.columns if c.startswith("tier_")]
     restriction_str = ", ".join(f"{t} = 0" for t in interaction_terms)
 
     wald = result.wald_test(restriction_str, use_f=True, scalar=True)
@@ -865,11 +885,13 @@ def _build_diagnostics_summary(results: dict) -> pd.DataFrame:
         rows.append(row)
 
     wald = results["wald_test"]
-    rows.append({
-        "tier": "wald_test",
-        "boxcox_lambda": None,
-        "jb_first_stat": wald["wald_statistic"],
-        "jb_first_p": wald["p_value"],
-    })
+    rows.append(
+        {
+            "tier": "wald_test",
+            "boxcox_lambda": None,
+            "jb_first_stat": wald["wald_statistic"],
+            "jb_first_p": wald["p_value"],
+        }
+    )
 
     return pd.DataFrame(rows)

@@ -196,7 +196,8 @@ _AMENITY_PATTERNS: dict[str, re.Pattern[str]] = {
         re.IGNORECASE,
     ),
     "Gourmet_space": re.compile(
-        r"espa.o\s*gourmet|gourmet", re.IGNORECASE,
+        r"espa.o\s*gourmet|gourmet",
+        re.IGNORECASE,
     ),
     "Sports_court": re.compile(
         r"quadra|quadras?\s*(?:de\s*)?"
@@ -312,9 +313,7 @@ def _normalize_text(text):
         ASCII-lowercased version of *text*.
     """
     nfkd = unicodedata.normalize("NFKD", str(text))
-    ascii_text = "".join(
-        c for c in nfkd if unicodedata.category(c) != "Mn"
-    )
+    ascii_text = "".join(c for c in nfkd if unicodedata.category(c) != "Mn")
     return ascii_text.lower().strip()
 
 
@@ -372,11 +371,13 @@ def _extract_price(series):
     """
     text = series.astype("string")
     extracted = text.str.extract(
-        r"R\$\s*([\d.]+)", expand=False,
+        r"R\$\s*([\d.]+)",
+        expand=False,
     )
     cleaned = extracted.str.replace(".", "", regex=False)
     return pd.to_numeric(
-        cleaned, errors="coerce",
+        cleaned,
+        errors="coerce",
     ).astype(pd.Float32Dtype())
 
 
@@ -442,14 +443,18 @@ def _classify_category(df):
     is_casa_url = url.str.contains("/casas", regex=False)
 
     is_apt_desc = desc.str.contains(
-        _APT_DESC_PATTERN, na=False,
+        _APT_DESC_PATTERN,
+        na=False,
     )
     is_casa_desc = desc.str.contains(
-        _CASA_DESC_PATTERN, na=False,
+        _CASA_DESC_PATTERN,
+        na=False,
     )
 
     result = pd.Series(
-        None, index=df.index, dtype="object",
+        None,
+        index=df.index,
+        dtype="object",
     )
     result[is_apt_url] = "Apartamento"
     mask_casa_url = is_casa_url & result.isna()
@@ -479,10 +484,12 @@ def _smart_title(text):
         return pd.NA
     titled = str(text).title()
     titled = _STREET_PREPS.sub(
-        lambda m: m.group().lower(), titled,
+        lambda m: m.group().lower(),
+        titled,
     )
     titled = _ROMAN_NUMERALS.sub(
-        lambda m: m.group().upper(), titled,
+        lambda m: m.group().upper(),
+        titled,
     )
     return titled
 
@@ -518,33 +525,47 @@ def _clean_endereco(series):
     s = s.str.replace(r"^Al\.\s*", "Alameda ", regex=True)
     s = s.str.replace(r"^Tv\.\s*", "Travessa ", regex=True)
     s = s.str.replace(
-        r"^P[çc]\.\s*", "Praça ", regex=True,
+        r"^P[çc]\.\s*",
+        "Praça ",
+        regex=True,
     )
     s = s.str.replace(r"^Rod\.\s*", "Rodovia ", regex=True)
 
     s = s.str.replace(r"\s*Apto:.*$", "", regex=True)
     s = s.str.replace(
-        r"\s*Apt\.?\s*\d+.*$", "", regex=True,
+        r"\s*Apt\.?\s*\d+.*$",
+        "",
+        regex=True,
     )
     s = s.str.replace(
-        r"\s*Apartamento\s*\d+.*$", "", regex=True,
+        r"\s*Apartamento\s*\d+.*$",
+        "",
+        regex=True,
     )
 
     s = s.str.replace(
-        r",?\s*[Nn][º°]\.?\s*,?", " ", regex=True,
+        r",?\s*[Nn][º°]\.?\s*,?",
+        " ",
+        regex=True,
     )
     s = s.str.replace(
-        r",?\s*\b[Nn]\b\s*,?\s*(?=\d)", " ", regex=True,
+        r",?\s*\b[Nn]\b\s*,?\s*(?=\d)",
+        " ",
+        regex=True,
     )
 
     s = s.str.replace(r"\s+-\s*,", ",", regex=True)
     s = s.str.replace(r"\s+-\s+(?=\d)", " ", regex=True)
 
     s = s.str.replace(
-        r"\s*-?\s*[Cc][Ee][Pp]:?.*$", "", regex=True,
+        r"\s*-?\s*[Cc][Ee][Pp]:?.*$",
+        "",
+        regex=True,
     )
     s = s.str.replace(
-        r",\s*Curitiba\b.*$", "", regex=True,
+        r",\s*Curitiba\b.*$",
+        "",
+        regex=True,
     )
 
     s = s.str.replace(r"\s+,", ",", regex=True)
@@ -554,7 +575,8 @@ def _clean_endereco(series):
     s = s.map(_smart_title)
 
     has_type = s.str.contains(
-        _KNOWN_TYPES_PATTERN, na=True,
+        _KNOWN_TYPES_PATTERN,
+        na=True,
     )
     s = s.where(has_type, "Rua " + s)
 
@@ -562,11 +584,15 @@ def _clean_endereco(series):
         s = s.str.replace(wrong, correct, regex=False)
 
     s = s.str.replace(
-        r"(?<!,)\s+(\d+)\s*$", r", \1", regex=True,
+        r"(?<!,)\s+(\d+)\s*$",
+        r", \1",
+        regex=True,
     )
 
     s = s.str.replace(
-        r"(,\s*\d+)\s*,.*$", r"\1", regex=True,
+        r"(,\s*\d+)\s*,.*$",
+        r"\1",
+        regex=True,
     )
 
     return s
@@ -585,7 +611,8 @@ def _detect_offplan(series):
         Binary Int8 Series (1 = off-plan, 0 = not).
     """
     matches = series.fillna("").str.contains(
-        _OFFPLAN_PATTERN, na=False,
+        _OFFPLAN_PATTERN,
+        na=False,
     )
     return matches.astype(pd.Int8Dtype())
 
@@ -606,7 +633,8 @@ def _extract_amenities(series):
     frames = {}
     for name, pattern in _AMENITY_PATTERNS.items():
         frames[name] = text.str.contains(
-            pattern, na=False,
+            pattern,
+            na=False,
         ).astype(pd.Int8Dtype())
     return pd.DataFrame(frames, index=series.index)
 
@@ -627,17 +655,14 @@ def _create_count_dummies(df, col, prefix, max_val, ref=1):
         DataFrame with new dummy columns appended.
     """
     counts = pd.to_numeric(
-        df[col], errors="coerce",
+        df[col],
+        errors="coerce",
     ).fillna(0)
     for i in range(1, max_val + 1):
         if i == max_val:
-            df[f"{prefix}{i}"] = (
-                counts >= ref + i
-            ).astype(pd.Int8Dtype())
+            df[f"{prefix}{i}"] = (counts >= ref + i).astype(pd.Int8Dtype())
         else:
-            df[f"{prefix}{i}"] = (
-                counts == ref + i
-            ).astype(pd.Int8Dtype())
+            df[f"{prefix}{i}"] = (counts == ref + i).astype(pd.Int8Dtype())
     return df
 
 
@@ -652,14 +677,22 @@ def _cast_numeric_columns(df):
     """
     for col in ("Area_total_m2", "Area_util_m2", "Preco"):
         df[col] = pd.to_numeric(
-            df[col], errors="coerce",
+            df[col],
+            errors="coerce",
         ).astype(pd.Float32Dtype())
-    df["Idade_anos"] = pd.to_numeric(
-        df["Idade_anos"].astype("string").str.extract(
-            r"(\d+)", expand=False,
-        ),
-        errors="coerce",
-    ).fillna(0).astype(pd.Int16Dtype())
+    df["Idade_anos"] = (
+        pd.to_numeric(
+            df["Idade_anos"]
+            .astype("string")
+            .str.extract(
+                r"(\d+)",
+                expand=False,
+            ),
+            errors="coerce",
+        )
+        .fillna(0)
+        .astype(pd.Int16Dtype())
+    )
     return df
 
 
@@ -702,18 +735,9 @@ def _detect_outliers(df):
     area_iqr = _iqr_outliers(area)
 
     price_per_m2 = price / area
-    pm2_bounds = (
-        (price_per_m2 < _MIN_PRICE_PER_M2)
-        | (price_per_m2 > _MAX_PRICE_PER_M2)
-    )
+    pm2_bounds = (price_per_m2 < _MIN_PRICE_PER_M2) | (price_per_m2 > _MAX_PRICE_PER_M2)
 
-    outlier = (
-        price_bounds
-        | area_bounds
-        | price_iqr
-        | area_iqr
-        | pm2_bounds
-    )
+    outlier = price_bounds | area_bounds | price_iqr | area_iqr | pm2_bounds
     return outlier.fillna(value=False).astype(pd.Int8Dtype())
 
 
@@ -797,8 +821,10 @@ def clean_housing(raw_df):
 
     combined_text = (
         df["Descricao"].fillna("")
-        + " " + df["Areas_comuns"].fillna("")
-        + " " + df["Areas_privativas"].fillna("")
+        + " "
+        + df["Areas_comuns"].fillna("")
+        + " "
+        + df["Areas_privativas"].fillna("")
     )
     amenities = _extract_amenities(combined_text)
     df = pd.concat([df, amenities], axis=1)

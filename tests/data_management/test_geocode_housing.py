@@ -13,21 +13,29 @@ _OUTLIER_ID = 4
 _GEO = "hedonic_analysis.data_management.geocode_housing"
 
 
+@pytest.fixture(autouse=True)
+def _no_sleep():
+    with patch(f"{_GEO}.time.sleep"):
+        yield
+
+
 @pytest.fixture
 def sample_df():
-    return pd.DataFrame({
-        "id": [1, 2, 3, _OUTLIER_ID],
-        "address": [
-            "Rua XV de Novembro, 100",
-            "Avenida Batel, 200",
-            "Rua Marechal Deodoro, 300",
-            "Rua das Flores, 400",
-        ],
-        "neighborhood": ["Centro", "Batel", "Centro", "Centro"],
-        "price": [500_000.0, 800_000.0, 600_000.0, 700_000.0],
-        "usable_area_m2": [80.0, 120.0, 90.0, 100.0],
-        "outlier": [0, 0, 0, 1],
-    })
+    return pd.DataFrame(
+        {
+            "id": [1, 2, 3, _OUTLIER_ID],
+            "address": [
+                "Rua XV de Novembro, 100",
+                "Avenida Batel, 200",
+                "Rua Marechal Deodoro, 300",
+                "Rua das Flores, 400",
+            ],
+            "neighborhood": ["Centro", "Batel", "Centro", "Centro"],
+            "price": [500_000.0, 800_000.0, 600_000.0, 700_000.0],
+            "usable_area_m2": [80.0, 120.0, 90.0, 100.0],
+            "outlier": [0, 0, 0, 1],
+        }
+    )
 
 
 def _make_location(lat, lon):
@@ -39,10 +47,7 @@ def _make_location(lat, lon):
 
 def test_build_full_address(sample_df):
     result = _build_full_address(sample_df)
-    expected = (
-        "Rua XV de Novembro, 100, Centro, "
-        "Curitiba, Paraná, Brazil"
-    )
+    expected = "Rua XV de Novembro, 100, Centro, Curitiba, Paraná, Brazil"
     assert result.iloc[0] == expected
 
 
@@ -54,9 +59,10 @@ def test_build_full_address_all_rows(sample_df):
 
 @patch(f"{_GEO}.ArcGIS")
 @patch(f"{_GEO}.Nominatim")
-@patch(f"{_GEO}.time.sleep")
 def test_geocode_housing_filters_outliers(
-    _mock_sleep, mock_nominatim_cls, mock_arcgis_cls, sample_df,
+    mock_nominatim_cls,
+    mock_arcgis_cls,
+    sample_df,
 ):
     mock_geocoder = MagicMock()
     mock_geocoder.geocode.return_value = _make_location(-25.43, -49.27)
@@ -71,9 +77,10 @@ def test_geocode_housing_filters_outliers(
 
 @patch(f"{_GEO}.ArcGIS")
 @patch(f"{_GEO}.Nominatim")
-@patch(f"{_GEO}.time.sleep")
 def test_geocode_housing_adds_coordinates(
-    _mock_sleep, mock_nominatim_cls, mock_arcgis_cls, sample_df,
+    mock_nominatim_cls,
+    mock_arcgis_cls,
+    sample_df,
 ):
     mock_geocoder = MagicMock()
     mock_geocoder.geocode.return_value = _make_location(-25.43, -49.27)
@@ -90,9 +97,10 @@ def test_geocode_housing_adds_coordinates(
 
 @patch(f"{_GEO}.ArcGIS")
 @patch(f"{_GEO}.Nominatim")
-@patch(f"{_GEO}.time.sleep")
 def test_arcgis_fallback(
-    _mock_sleep, mock_nominatim_cls, mock_arcgis_cls, sample_df,
+    mock_nominatim_cls,
+    mock_arcgis_cls,
+    sample_df,
 ):
     mock_nominatim = MagicMock()
     mock_nominatim.geocode.return_value = None
@@ -110,9 +118,7 @@ def test_arcgis_fallback(
 
 @patch(f"{_GEO}.ArcGIS")
 @patch(f"{_GEO}.Nominatim")
-@patch(f"{_GEO}.time.sleep")
 def test_cache_prevents_re_geocoding(
-    _mock_sleep,
     mock_nominatim_cls,
     mock_arcgis_cls,
     sample_df,
@@ -138,9 +144,10 @@ def test_cache_prevents_re_geocoding(
 
 @patch(f"{_GEO}.ArcGIS")
 @patch(f"{_GEO}.Nominatim")
-@patch(f"{_GEO}.time.sleep")
 def test_output_columns(
-    _mock_sleep, mock_nominatim_cls, mock_arcgis_cls, sample_df,
+    mock_nominatim_cls,
+    mock_arcgis_cls,
+    sample_df,
 ):
     mock_geocoder = MagicMock()
     mock_geocoder.geocode.return_value = _make_location(-25.43, -49.27)
@@ -150,7 +157,13 @@ def test_output_columns(
     result = geocode_housing(sample_df)
 
     expected_cols = {
-        "id", "address", "neighborhood", "price",
-        "usable_area_m2", "outlier", "latitude", "longitude",
+        "id",
+        "address",
+        "neighborhood",
+        "price",
+        "usable_area_m2",
+        "outlier",
+        "latitude",
+        "longitude",
     }
     assert expected_cols.issubset(set(result.columns))

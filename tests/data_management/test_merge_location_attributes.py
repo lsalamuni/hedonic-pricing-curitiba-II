@@ -28,14 +28,16 @@ _N_LOCATION_VARS = 10
 
 @pytest.fixture
 def sample_housing():
-    return pd.DataFrame({
-        "id": [1, 2, 3],
-        "neighborhood": ["Centro", "Batel", "Xaxim"],
-        "price": [500_000, 1_200_000, 350_000],
-        "total_area_m2": [80, 150, 60],
-        "latitude": [-25.43, -25.44, -25.51],
-        "longitude": [-49.27, -49.29, -49.26],
-    })
+    return pd.DataFrame(
+        {
+            "id": [1, 2, 3],
+            "neighborhood": ["Centro", "Batel", "Xaxim"],
+            "price": [500_000, 1_200_000, 350_000],
+            "total_area_m2": [80, 150, 60],
+            "latitude": [-25.43, -25.44, -25.51],
+            "longitude": [-49.27, -49.29, -49.26],
+        }
+    )
 
 
 def test_normalise_name():
@@ -64,7 +66,9 @@ def test_add_apartment_flag_no_category():
 )
 def test_merge_returns_all_tiers(sample_housing):
     result = merge_location_attributes(
-        sample_housing, _INFO_PATH, _CLASSIFICATION_PATH,
+        sample_housing,
+        _INFO_PATH,
+        _CLASSIFICATION_PATH,
     )
     assert "all" in result
     assert "low" in result
@@ -78,7 +82,9 @@ def test_merge_returns_all_tiers(sample_housing):
 )
 def test_merge_adds_tier_column(sample_housing):
     result = merge_location_attributes(
-        sample_housing, _INFO_PATH, _CLASSIFICATION_PATH,
+        sample_housing,
+        _INFO_PATH,
+        _CLASSIFICATION_PATH,
     )
     assert "tier" in result["all"].columns
 
@@ -89,7 +95,9 @@ def test_merge_adds_tier_column(sample_housing):
 )
 def test_merge_adds_location_vars(sample_housing):
     result = merge_location_attributes(
-        sample_housing, _INFO_PATH, _CLASSIFICATION_PATH,
+        sample_housing,
+        _INFO_PATH,
+        _CLASSIFICATION_PATH,
     )
     for var in ["population", "density", "hospitals", "shoppings"]:
         assert var in result["all"].columns
@@ -101,7 +109,9 @@ def test_merge_adds_location_vars(sample_housing):
 )
 def test_merge_tier_split_is_exhaustive(sample_housing):
     result = merge_location_attributes(
-        sample_housing, _INFO_PATH, _CLASSIFICATION_PATH,
+        sample_housing,
+        _INFO_PATH,
+        _CLASSIFICATION_PATH,
     )
     total = sum(len(result[t]) for t in ("low", "mid", "high"))
     assert total == len(result["all"])
@@ -112,13 +122,15 @@ def test_merge_tier_split_is_exhaustive(sample_housing):
     reason="Data files not found",
 )
 def test_unmatched_neighborhood_dropped():
-    df = pd.DataFrame({
-        "id": [1],
-        "neighborhood": ["FAKE_NEIGHBORHOOD"],
-        "price": [100_000],
-        "total_area_m2": [50],
-        "latitude": [-25.43],
-        "longitude": [-49.27],
-    })
+    df = pd.DataFrame(
+        {
+            "id": [1],
+            "neighborhood": ["FAKE_NEIGHBORHOOD"],
+            "price": [100_000],
+            "total_area_m2": [50],
+            "latitude": [-25.43],
+            "longitude": [-49.27],
+        }
+    )
     result = merge_location_attributes(df, _INFO_PATH, _CLASSIFICATION_PATH)
     assert len(result["all"]) == 0
