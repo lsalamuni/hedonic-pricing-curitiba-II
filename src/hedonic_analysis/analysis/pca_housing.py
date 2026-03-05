@@ -36,6 +36,17 @@ _VARIABLE_LABELS: dict[str, str] = {
 _STRAT_LOW_THRESHOLD: float = -0.01
 _STRAT_HIGH_THRESHOLD: float = 1.00
 
+_KMO_THRESHOLDS: list[tuple[float, str]] = [
+    (0.9, "Marvelous adequacy"),
+    (0.8, "Meritorious adequacy"),
+    (0.7, "Middling adequacy"),
+    (0.6, "Mediocre adequacy"),
+    (0.5, "Miserable adequacy"),
+]
+
+_BARTLETT_VERY_GOOD: float = 0.001
+_BARTLETT_GOOD: float = 0.05
+
 # ------------------------------------------------------------------ #
 # Private helpers
 # ------------------------------------------------------------------ #
@@ -130,9 +141,7 @@ def _compute_weighted_score(
     variance_ratios: np.ndarray,
 ) -> pd.Series:
     """Weighted sum of PC1 and PC2 scores using variance proportions."""
-    return (
-        scores["PC1"] * variance_ratios[0] + scores["PC2"] * variance_ratios[1]
-    )
+    return scores["PC1"] * variance_ratios[0] + scores["PC2"] * variance_ratios[1]
 
 
 def _classify_neighborhoods(
@@ -143,11 +152,13 @@ def _classify_neighborhoods(
     tier = pd.Series("mid", index=final_scores.index)
     tier[final_scores < _STRAT_LOW_THRESHOLD] = "low"
     tier[final_scores > _STRAT_HIGH_THRESHOLD] = "high"
-    return pd.DataFrame({
-        "loc": locations.to_numpy(),
-        "final_score": final_scores.to_numpy(),
-        "tier": tier.to_numpy(),
-    })
+    return pd.DataFrame(
+        {
+            "loc": locations.to_numpy(),
+            "final_score": final_scores.to_numpy(),
+            "tier": tier.to_numpy(),
+        }
+    )
 
 
 # ------------------------------------------------------------------ #
@@ -280,7 +291,12 @@ def _plot_pca_biplot(
     ax.set_ylabel(f"PC2  ({prop[1]:.1f}%)", fontweight="bold")
     ax.set_title("PCA Plot")
     circle = plt.Circle(
-        (0, 0), 1, fill=False, color="grey", linestyle="--", linewidth=0.5,
+        (0, 0),
+        1,
+        fill=False,
+        color="grey",
+        linestyle="--",
+        linewidth=0.5,
     )
     ax.add_patch(circle)
     ax.set_aspect("equal")
@@ -307,6 +323,81 @@ def _df_to_latex(df: pd.DataFrame, path, caption: str, label: str) -> None:
     )
     latex = re.sub(r"\\textbackslash\{\}", r"\\", latex)
     Path(path).write_text(latex, encoding="utf-8")
+
+
+def _build_adequacy_table(
+    kmo_overall: float,
+    bartlett_p: float,
+) -> pd.DataFrame:
+    """Build a DataFrame with KMO and Bartlett test results."""
+    return pd.DataFrame(
+        {
+            "Test": ["Kaiser-Meyer-Olkin", "Bartlett"],
+            "Result": [f"{kmo_overall:.3f}", f"$p < {bartlett_p:.3f}$"],
+            "Interpretation": [
+                _kmo_interpretation(kmo_overall),
+                _bartlett_interpretation(bartlett_p),
+            ],
+        },
+    )
+
+
+def _kmo_interpretation(kmo: float) -> str:
+    """Classify KMO value following Favero and Belfiore (2017, p. 386-387)."""
+    for threshold, label in _KMO_THRESHOLDS:
+        if kmo >= threshold:
+            return label
+    return "Unacceptable"
+
+
+def _bartlett_interpretation(p: float) -> str:
+    """Classify Bartlett p-value."""
+    if p < _BARTLETT_VERY_GOOD:
+        return "Very good adequacy"
+    if p < _BARTLETT_GOOD:
+        return "Good adequacy"
+    return "Inadequate"
+
+
+def _adequacy_table_to_latex(
+    df: pd.DataFrame,
+    path,
+    bartlett_chi2: float,
+    n_vars: int,
+) -> None:
+    """Write the adequacy test table as a LaTeX file."""
+    dof = n_vars * (n_vars - 1) // 2
+    lines = [
+        r"\begin{table}[!ht]",
+        r"\centering",
+        r"\caption{Global adequacy tests for factor analysis.}"
+        r"\label{tab:adequacy-tests}",
+        r"\begin{threeparttable}",
+        r"\begin{tabular}{l c l}",
+        r"\toprule",
+        r"Test & Result & Interpretation\tnote{*} \\",
+        r"\midrule",
+    ]
+    for _, row in df.iterrows():
+        lines.append(
+            f"{row['Test']} & {row['Result']} & {row['Interpretation']} \\\\",
+        )
+    lines.extend(
+        [
+            r"\bottomrule",
+            r"\end{tabular}",
+            r"\begin{tablenotes}",
+            r"\scriptsize",
+            rf"\item \textit{{Note:}} Author's calculations. "
+            rf"Bartlett's test statistic $\chi^2({dof}) = {bartlett_chi2:.2f}$.",
+            r"\item[*] Interpretation follows "
+            r"F\'avero and Belfiore (2017, p.\ 386--387).",
+            r"\end{tablenotes}",
+            r"\end{threeparttable}",
+            r"\end{table}",
+        ]
+    )
+    Path(path).write_text("\n".join(lines), encoding="utf-8")
 
 
 # ------------------------------------------------------------------ #
@@ -345,6 +436,14 @@ def run_pca_analysis(
     _kmo_per_var, kmo_overall = _run_kmo(var_array)
     bartlett_chi2, bartlett_p = _run_bartlett(var_array)
 
+    adequacy_df = _build_adequacy_table(kmo_overall, bartlett_p)
+    _adequacy_table_to_latex(
+        adequacy_df,
+        analysis_dir / "adequacy_tests.tex",
+        bartlett_chi2,
+        len(_PCA_VARIABLES),
+    )
+
     # Correlation
     corr = _compute_correlation(var_df)
     _plot_correlation_heatmap(corr, images_dir / "correlation_heatmap.png")
@@ -382,7 +481,8 @@ def run_pca_analysis(
     scores.to_parquet(data_dir / "pca_scores.parquet")
     classification.to_parquet(data_dir / "neighborhood_classification.parquet")
     classification.to_excel(
-        data_dir / "neighborhood_classification.xlsx", index=False,
+        data_dir / "neighborhood_classification.xlsx",
+        index=False,
     )
 
     # Save LaTeX tables
