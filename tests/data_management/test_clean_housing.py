@@ -344,6 +344,10 @@ def test_detect_outliers_extreme_price_flagged():
                 [80, 90, 100],
                 dtype=pd.Float32Dtype(),
             ),
+            "Area_total_m2": pd.array(
+                [80, 90, 100],
+                dtype=pd.Float32Dtype(),
+            ),
         },
     )
     got = _detect_outliers(df)
@@ -361,10 +365,36 @@ def test_detect_outliers_normal_values_not_flagged():
                 [70, 80, 90],
                 dtype=pd.Float32Dtype(),
             ),
+            "Area_total_m2": pd.array(
+                [70, 80, 90],
+                dtype=pd.Float32Dtype(),
+            ),
         },
     )
     got = _detect_outliers(df)
     assert got.sum() == 0
+
+
+def test_detect_outliers_total_less_than_usable_flagged():
+    df = pd.DataFrame(
+        {
+            "Preco": pd.array(
+                [400_000, 500_000],
+                dtype=pd.Float32Dtype(),
+            ),
+            "Area_util_m2": pd.array(
+                [80, 158],
+                dtype=pd.Float32Dtype(),
+            ),
+            "Area_total_m2": pd.array(
+                [80, 1],
+                dtype=pd.Float32Dtype(),
+            ),
+        },
+    )
+    got = _detect_outliers(df)
+    assert got.iloc[0] == 0
+    assert got.iloc[1] == 1
 
 
 # ------------------------------------------------------------------ #

@@ -727,6 +727,7 @@ def _detect_outliers(df):
     """
     price = df["Preco"]
     area = df["Area_util_m2"]
+    total_area = df["Area_total_m2"]
 
     price_bounds = (price < _MIN_PRICE) | (price > _MAX_PRICE)
     area_bounds = (area < _MIN_AREA) | (area > _MAX_AREA)
@@ -737,7 +738,12 @@ def _detect_outliers(df):
     price_per_m2 = price / area
     pm2_bounds = (price_per_m2 < _MIN_PRICE_PER_M2) | (price_per_m2 > _MAX_PRICE_PER_M2)
 
-    outlier = price_bounds | area_bounds | price_iqr | area_iqr | pm2_bounds
+    # Total area must be >= usable area
+    area_ratio = total_area < area
+
+    outlier = (
+        price_bounds | area_bounds | price_iqr | area_iqr | pm2_bounds | area_ratio
+    )
     return outlier.fillna(value=False).astype(pd.Int8Dtype())
 
 
