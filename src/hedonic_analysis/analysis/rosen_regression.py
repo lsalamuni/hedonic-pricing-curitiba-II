@@ -35,7 +35,7 @@ _INTRINSIC_CONTINUOUS: list[str] = ["total_area_m2"]
 _INTRINSIC_LOG_PLUS_ONE: list[str] = ["age_years"]
 
 _INTRINSIC_BINARY: list[str] = [
-    "off_plan",
+    "offplan",
     "party_room",
     "game_room",
     "gym",
@@ -50,7 +50,6 @@ _INTRINSIC_BINARY: list[str] = [
     "playground",
     "parking_1",
     "parking_2",
-    "bedroom_1",
     "bedroom_2",
     "bedroom_3",
     "bedroom_4",
@@ -87,6 +86,7 @@ _FIRST_STAGE_DROP: list[str] = [
     "neighborhood",
     "apartment",
     "usable_area_m2",
+    "bedroom_1",
     "population",
     "density",
     "cicloways",
@@ -332,10 +332,20 @@ def _prepare_second_stage_dep_var(
     tier_df: pd.DataFrame,
     beta_area: float,
 ) -> pd.Series:
-    """Compute second-stage dependent variable: beta_area * (Price / Area)."""
+    """Compute OLS second-stage dependent variable: beta_area * Price / Area."""
     price = tier_df["price"].astype(float)
     area = tier_df["total_area_m2"].astype(float)
     return beta_area * (price / area)
+
+
+def _prepare_second_stage_dep_var_conley(
+    tier_df: pd.DataFrame,
+    beta_area: float,
+) -> pd.Series:
+    """Compute Conley second-stage dep var: beta_area * ln(P) / ln(A)."""
+    log_price = np.log(tier_df["price"].astype(float))
+    log_area = np.log(tier_df["total_area_m2"].astype(float))
+    return beta_area * (log_price / log_area)
 
 
 def _build_second_stage_x(
@@ -534,6 +544,285 @@ def _coef_table_to_latex(
 
 
 # ------------------------------------------------------------------ #
+# Private helpers, paper-formatted LaTeX tables
+# ------------------------------------------------------------------ #
+
+_FIRST_STAGE_PAPER_VARS: list[tuple[str, str]] = [
+    ("total_area_m2", "Total area"),
+    ("age_years", "Age"),
+    ("offplan", "Off-plan"),
+    ("party_room", "Party room"),
+    ("game_room", "Game room"),
+    ("gym", "Gym"),
+    ("pool", "Pool"),
+    ("sauna", "Sauna"),
+    ("bbq", "BBQ"),
+    ("gourmet_space", "Gourmet space"),
+    ("sports_court", "Sports court"),
+    ("guardhouse", "Guardhouse"),
+    ("cameras", "Cameras"),
+    ("balcony", "Balcony"),
+    ("playground", "Playground"),
+    ("parking_1", "Parking (1 spot)"),
+    ("parking_2", "Parking (2+ spots)"),
+    ("bedroom_2", "Bedroom (2)"),
+    ("bedroom_3", "Bedroom (3)"),
+    ("bedroom_4", "Bedroom (4+)"),
+    ("bathroom_1", "Bathroom (1)"),
+    ("bathroom_2", "Bathroom (2)"),
+    ("bathroom_3", "Bathroom (3)"),
+    ("bathroom_4", "Bathroom (4+)"),
+]
+
+_SECOND_STAGE_PAPER_SECTIONS: list[tuple[str, list[tuple[str, str]]]] = [
+    (
+        "Intrinsic Characteristics",
+        [
+            ("log_total_area_m2", "Log(total area)"),
+            ("log_age_years", "Log(age)"),
+            ("offplan", "Off-plan"),
+            ("party_room", "Party room"),
+            ("game_room", "Game room"),
+            ("gym", "Gym"),
+            ("pool", "Pool"),
+            ("sauna", "Sauna"),
+            ("bbq", "BBQ"),
+            ("gourmet_space", "Gourmet space"),
+            ("sports_court", "Sports court"),
+            ("guardhouse", "Guardhouse"),
+            ("cameras", "Cameras"),
+            ("balcony", "Balcony"),
+            ("playground", "Playground"),
+            ("parking_1", "Parking (1 spot)"),
+            ("parking_2", "Parking (2+ spots)"),
+            ("bedroom_2", "Bedroom (2)"),
+            ("bedroom_3", "Bedroom (3)"),
+            ("bedroom_4", "Bedroom (4+)"),
+            ("bathroom_1", "Bathroom (1)"),
+            ("bathroom_2", "Bathroom (2)"),
+            ("bathroom_3", "Bathroom (3)"),
+            ("bathroom_4", "Bathroom (4+)"),
+        ],
+    ),
+    (
+        "Supply Shifters",
+        [
+            ("log_density", "Log(density)"),
+            ("log_population", "Log(population)"),
+        ],
+    ),
+    (
+        "Locational Attributes",
+        [
+            ("green_area", "Green area"),
+            ("cicloways", "Cycleways"),
+            ("hospitals", "Hospitals"),
+            ("terminals", "Terminals"),
+            ("private_schools", "Private schools"),
+            ("public_schools", "Public schools"),
+            ("culture_facilities", "Culture facilities"),
+            ("shoppings", "Shopping centers"),
+        ],
+    ),
+]
+
+
+_LATEX_SIG_MAP: dict[str, str] = {
+    "***": "$^{***}$",
+    "**": "$^{**}$",
+    "*": "$^{*}$",
+    ".": "$^{\\cdot}$",
+}
+
+
+def _latex_sig(p: float) -> str:
+    """Return LaTeX-formatted significance stars."""
+    if np.isnan(p):
+        return ""
+    stars = _significance_stars(p)
+    return _LATEX_SIG_MAP.get(stars, "")
+
+
+def _fmt_first_stage_cell(coef: float, se: float, p: float) -> str:
+    """Format first-stage cell: 3 decimal places."""
+    if np.isnan(coef):
+        return "---"
+    stars = _latex_sig(p)
+    sign = "$-$" if coef < 0 else ""
+    return f"{sign}{abs(coef):.3f}{stars} ({se:.3f})"
+
+
+def _fmt_second_stage_cell(coef: float, se: float, p: float) -> str:
+    """Format second-stage cell: 4 decimal places."""
+    if np.isnan(coef):
+        return "---"
+    stars = _latex_sig(p)
+    sign = "$-$" if coef < 0 else ""
+    return f"{sign}{abs(coef):.4f}{stars} ({se:.4f})"
+
+
+def _write_first_stage_paper_table(results: dict, path: Path) -> None:
+    """Write paper-formatted first-stage LaTeX table."""
+    lines = [
+        r"\begin{table}[!ht]",
+        r"\centering",
+        r"\caption{First Stage Hedonic Regression Results "
+        r"(Log-Log Specification).}\label{tab:first-stage}",
+        r"\begin{threeparttable}",
+        r"\scriptsize",
+        r"\begin{tabular}{l ccc}",
+        r"\toprule",
+        r"Variable & Low Tier & Mid Tier & High Tier \\",
+        r"\midrule",
+    ]
+
+    # Intercept row
+    icells = []
+    for tier in ("low", "mid", "high"):
+        table = results[tier]["first_stage"]["conley_table"]
+        if "(Intercept)" in table.index:
+            row = table.loc["(Intercept)"]
+            icells.append(
+                _fmt_first_stage_cell(
+                    row["coefficient"], row["std_error"], row["p_value"]
+                )
+            )
+        else:
+            icells.append("---")
+    lines.append(f"Intercept & {' & '.join(icells)} \\\\")
+
+    for var_name, display_name in _FIRST_STAGE_PAPER_VARS:
+        cells = []
+        for tier in ("low", "mid", "high"):
+            table = results[tier]["first_stage"]["conley_table"]
+            if var_name in table.index:
+                row = table.loc[var_name]
+                cells.append(
+                    _fmt_first_stage_cell(
+                        row["coefficient"], row["std_error"], row["p_value"]
+                    )
+                )
+            else:
+                cells.append("---")
+        lines.append(f"{display_name} & {' & '.join(cells)} \\\\")
+
+    lines.append(r"\midrule")
+
+    r2_cells = []
+    adj_r2_cells = []
+    n_cells = []
+    for tier in ("low", "mid", "high"):
+        ols = results[tier]["first_stage"]["ols_result"]
+        r2_cells.append(f"{ols.rsquared:.3f}")
+        adj_r2_cells.append(f"{ols.rsquared_adj:.3f}")
+        n_cells.append(f"{int(ols.nobs):,}")
+    lines.append(f"$R^2$ & {' & '.join(r2_cells)} \\\\")
+    lines.append(f"Adj.\\ $R^2$ & {' & '.join(adj_r2_cells)} \\\\")
+    lines.append(f"$N$ & {' & '.join(n_cells)} \\\\")
+
+    lines.extend(
+        [
+            r"\bottomrule",
+            r"\end{tabular}",
+            r"\begin{tablenotes}",
+            r"\scriptsize",
+            r"\item \textit{Note:} Conley (1999) HAC standard errors in parentheses.",
+            r"\item $^{***}p<0.001$; $^{**}p<0.01$; $^{*}p<0.05$;"
+            r" $^{\cdot}\,p<0.10$.",
+            r"\end{tablenotes}",
+            r"\end{threeparttable}",
+            r"\end{table}",
+        ]
+    )
+
+    path.write_text("\n".join(lines), encoding="utf-8")
+
+
+def _write_second_stage_paper_table(results: dict, path: Path) -> None:
+    """Write paper-formatted second-stage LaTeX table."""
+    lines = [
+        r"\begin{table}[!ht]",
+        r"\centering",
+        r"\caption{Second Stage Hedonic Regression Results "
+        r"(Implicit Prices).}\label{tab:second-stage}",
+        r"\begin{threeparttable}",
+        r"\scriptsize",
+        r"\begin{tabular}{l ccc}",
+        r"\toprule",
+        r"Variable & Low Tier & Mid Tier & High Tier \\",
+        r"\midrule",
+    ]
+
+    # Intercept row
+    icells = []
+    for tier in ("low", "mid", "high"):
+        table = results[tier]["second_stage"]["conley_table"]
+        if "(Intercept)" in table.index:
+            row = table.loc["(Intercept)"]
+            icells.append(
+                _fmt_second_stage_cell(
+                    row["coefficient"], row["std_error"], row["p_value"]
+                )
+            )
+        else:
+            icells.append("---")
+    lines.append(f"Intercept & {' & '.join(icells)} \\\\")
+
+    for section_name, variables in _SECOND_STAGE_PAPER_SECTIONS:
+        if section_name != "Intrinsic Characteristics":
+            lines.append(r"\midrule")
+        lines.append(f"\\textit{{{section_name}}} & & & \\\\")
+
+        for var_name, display_name in variables:
+            cells = []
+            for tier in ("low", "mid", "high"):
+                table = results[tier]["second_stage"]["conley_table"]
+                if var_name in table.index:
+                    row = table.loc[var_name]
+                    cells.append(
+                        _fmt_second_stage_cell(
+                            row["coefficient"], row["std_error"], row["p_value"]
+                        )
+                    )
+                else:
+                    cells.append("---")
+            lines.append(f"{display_name} & {' & '.join(cells)} \\\\")
+
+    lines.append(r"\midrule")
+
+    r2_cells = []
+    adj_r2_cells = []
+    n_cells = []
+    for tier in ("low", "mid", "high"):
+        ols = results[tier]["second_stage"]["ols_result"]
+        r2_cells.append(f"{ols.rsquared:.3f}")
+        adj_r2_cells.append(f"{ols.rsquared_adj:.3f}")
+        n_cells.append(f"{int(ols.nobs):,}")
+    lines.append(f"$R^2$ & {' & '.join(r2_cells)} \\\\")
+    lines.append(f"Adj.\\ $R^2$ & {' & '.join(adj_r2_cells)} \\\\")
+    lines.append(f"$N$ & {' & '.join(n_cells)} \\\\")
+
+    lines.extend(
+        [
+            r"\bottomrule",
+            r"\end{tabular}",
+            r"\begin{tablenotes}",
+            r"\scriptsize",
+            r"\item \textit{Note:} Conley (1999) HAC standard errors in parentheses."
+            r" Dependent variable: $\hat{p} = \partial p / \partial\text{Area}$.",
+            r"\item $^{***}p<0.001$; $^{**}p<0.01$; $^{*}p<0.05$;"
+            r" $^{\cdot}\,p<0.10$."
+            r" \textemdash\ indicates variable dropped due to multicollinearity.",
+            r"\end{tablenotes}",
+            r"\end{threeparttable}",
+            r"\end{table}",
+        ]
+    )
+
+    path.write_text("\n".join(lines), encoding="utf-8")
+
+
+# ------------------------------------------------------------------ #
 # Core analysis, single-tier runners
 # ------------------------------------------------------------------ #
 
@@ -629,7 +918,7 @@ def _run_second_stage(
 
     # Conley SEs (second stage)
     conley_df, conley_coords = _prepare_conley_data(tier_df)
-    conley_price_m2 = _prepare_second_stage_dep_var(conley_df, beta_area_conley)
+    conley_price_m2 = _prepare_second_stage_dep_var_conley(conley_df, beta_area_conley)
     conley_x_df = _build_second_stage_x(conley_df, tier_name)
 
     conley_result = _conley_regression(
@@ -826,6 +1115,10 @@ def run_rosen_analysis(
         caption="Second Stage Conley Regression (All Tiers)",
         label="tab:second_stage_all_tiers",
     )
+
+    # Paper-formatted tables
+    _write_first_stage_paper_table(results, analysis_dir / "first_stage_paper.tex")
+    _write_second_stage_paper_table(results, analysis_dir / "second_stage_paper.tex")
 
     # Wald test
     wald = _run_wald_test(tiers)
