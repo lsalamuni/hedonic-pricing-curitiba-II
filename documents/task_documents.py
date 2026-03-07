@@ -1,61 +1,57 @@
-"""Tasks for compiling the paper and presentation(s)."""
+"""Task for compiling the paper."""
 
 import shutil
 import subprocess
-import sys
 from pathlib import Path
 
-import pytask
+from hedonic_analysis.config import BLD, BLD_ANALYSIS, BLD_DATA, BLD_IMAGES, DOCUMENTS
 
-from template_project.config import DOCUMENTS, ROOT
-
-for fmt, produces in {
-    "pdf": ROOT / "paper.pdf",
-    "html": ROOT / "_build" / "html" / "index.html",
-}.items():
-
-    @pytask.task(id=f"paper-{fmt}")
-    def task_compile_paper(
-        paper_md: Path = DOCUMENTS / "paper.md",
-        myst_yml: Path = ROOT / "myst.yml",
-        refs: Path = DOCUMENTS / "refs.bib",
-        figure: Path = DOCUMENTS / "public" / "smoking_by_marital_status.png",
-        table: Path = DOCUMENTS / "tables" / "estimation_results.md",
-        produces: Path = produces,
-    ) -> None:
-        """Compile the paper from MyST Markdown using Jupyter Book 2.0."""
-        fmt = produces.suffix.lstrip(".")
-        subprocess.run(
-            ("jupyter", "book", "build", f"--{fmt}"),
-            check=True,
-            cwd=ROOT.absolute(),
-        )
-        if fmt == "pdf":
-            build_pdf = ROOT / "_build" / "exports" / "paper.pdf"
-            shutil.copy(build_pdf, produces)
+_TABLE_MARKERS = {
+    "% {{ADEQUACY_TABLE}}": "adequacy_tests.tex",
+    "% {{FIRST_STAGE_TABLE}}": "first_stage_paper.tex",
+    "% {{SECOND_STAGE_TABLE}}": "second_stage_paper.tex",
+}
 
 
-@pytask.task(id="presentation")
-def task_compile_presentation(
-    pres_md: Path = DOCUMENTS / "presentation.md",
-    table: Path = DOCUMENTS / "tables" / "estimation_results.md",
-    figure: Path = DOCUMENTS / "public" / "smoking_by_marital_status.png",
-    produces: Path = ROOT / "presentation.pdf",
+def task_compile_paper(
+    paper_md: Path = DOCUMENTS / "paper.md",
+    myst_yml: Path = DOCUMENTS / "myst.yml",
+    refs: Path = DOCUMENTS / "refs.bib",
+    classification: Path = BLD_DATA / "neighborhood_classification.parquet",
+    regression: Path = BLD_DATA / "first_stage_results.parquet",
+    adequacy_tex: Path = BLD_ANALYSIS / "adequacy_tests.tex",
+    first_stage_tex: Path = BLD_ANALYSIS / "first_stage_paper.tex",
+    second_stage_tex: Path = BLD_ANALYSIS / "second_stage_paper.tex",
+    produces: Path = BLD / "paper.pdf",
 ) -> None:
-    """Compile the presentation from Slidev Markdown to PDF."""
-    if sys.platform == "win32":
-        shell = True
-    else:
-        shell = False
-    subprocess.run(
-        (
-            "npx",
-            "slidev",
-            "export",
-            pres_md.absolute(),
-            "--output",
-            produces.absolute(),
-        ),
-        check=True,
-        shell=shell,
-    )
+    """Compile the paper from MyST Markdown using Jupyter Book 2.0."""
+    # Copy pipeline images to documents/public/ for MyST resolution
+    public = DOCUMENTS / "public"
+    public.mkdir(parents=True, exist_ok=True)
+    for img in sorted(BLD_IMAGES.glob("*.png")):
+        shutil.copy2(img, public / img.name)
+
+    # Substitute table placeholders with generated LaTeX content
+    original_text = paper_md.read_text(encoding="utf-8")
+    modified_text = original_text
+    for marker, tex_name in _TABLE_MARKERS.items():
+        tex_path = BLD_ANALYSIS / tex_name
+        if tex_path.exists():
+            modified_text = modified_text.replace(
+                marker, tex_path.read_text(encoding="utf-8")
+            )
+
+    try:
+        paper_md.write_text(modified_text, encoding="utf-8")
+        subprocess.run(
+            ("jupyter", "book", "build", "--pdf"),
+            cwd=DOCUMENTS.absolute(),
+            check=False,
+        )
+        build_pdf = DOCUMENTS / "_build" / "exports" / "paper.pdf"
+        if not build_pdf.exists():
+            msg = f"PDF not produced at {build_pdf}"
+            raise FileNotFoundError(msg)
+        shutil.copy(build_pdf, produces)
+    finally:
+        paper_md.write_text(original_text, encoding="utf-8")
