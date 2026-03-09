@@ -71,8 +71,7 @@ repos:
       - id: mdformat
         additional_dependencies: [mdformat-myst, mdformat-ruff]
         args: [--wrap, "88"]
-        files: (docs_template/.|documents/.)
-        exclude: (documents/presentation.md)
+        files: (documents/.)
   - repo: https://github.com/codespell-project/codespell
     rev: v2.4.1
     hooks:
