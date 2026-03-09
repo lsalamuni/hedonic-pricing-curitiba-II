@@ -4,7 +4,14 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from hedonic_analysis.config import BLD, BLD_ANALYSIS, BLD_DATA, BLD_IMAGES, DOCUMENTS
+from hedonic_analysis.config import (
+    BLD,
+    BLD_ANALYSIS,
+    BLD_DATA,
+    BLD_IMAGES,
+    DOCUMENTS,
+    ROOT,
+)
 
 _TABLE_MARKERS = {
     "% {{ADEQUACY_TABLE}}": "adequacy_tests.tex",
@@ -15,7 +22,7 @@ _TABLE_MARKERS = {
 
 def task_compile_paper(
     paper_md: Path = DOCUMENTS / "paper.md",
-    myst_yml: Path = DOCUMENTS / "myst.yml",
+    myst_yml: Path = ROOT / "myst.yml",
     refs: Path = DOCUMENTS / "refs.bib",
     classification: Path = BLD_DATA / "neighborhood_classification.parquet",
     regression: Path = BLD_DATA / "first_stage_results.parquet",
@@ -45,10 +52,10 @@ def task_compile_paper(
         paper_md.write_text(modified_text, encoding="utf-8")
         subprocess.run(
             ("jupyter", "book", "build", "--pdf"),
-            cwd=DOCUMENTS.absolute(),
+            cwd=ROOT,
             check=False,
         )
-        build_pdf = DOCUMENTS / "_build" / "exports" / "paper.pdf"
+        build_pdf = ROOT / "_build" / "exports" / "paper.pdf"
         if not build_pdf.exists():
             msg = f"PDF not produced at {build_pdf}"
             raise FileNotFoundError(msg)

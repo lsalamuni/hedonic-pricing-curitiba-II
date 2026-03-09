@@ -18,14 +18,16 @@ project:
     - urban economics
     - real estate
     - market segmentation
+  toc:
+    - file: documents/paper.md
   exports:
     - format: pdf
       template: arxiv_nips
-      articles: paper.md
+      articles: documents/paper.md
       parts:
         abstract: abstract
-      bibtex: refs.bib
-  exclude: [public/*]
+      bibtex: documents/refs.bib
+  exclude: [documents/public/*]
 site:
   template: book-theme
   options:
