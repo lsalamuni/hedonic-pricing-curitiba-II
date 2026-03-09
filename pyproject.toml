@@ -30,6 +30,7 @@ authors = [
 maintainers = [
   { name = "Lucas Salamuni", email = "lsalamun@smail.uni-koeln.de" },
 ]
+dependencies = [ "factor-analyzer>=0.5.1,<0.6", "folium>=0.20.0,<0.21", "pyshp>=3.0.3,<4" ]
 
 [project.readme]
 file = "README.md"
@@ -93,6 +94,11 @@ python-kaleido = ">=1.1"
 statsmodels = "*"
 ty = "*"
 pyarrow = ">=23.0.0,<24"
+openpyxl = ">=3.1.5,<4"
+scikit-learn = ">=1.8.0,<2"
+matplotlib = ">=3.10.8,<4"
+seaborn = ">=0.13.2,<0.14"
+pyproj = ">=3.7.2,<4"
 
 [tool.pixi.pypi-dependencies]
 hedonic_analysis = { path = ".", editable = true }
@@ -101,6 +107,7 @@ tabulate = "*"
 selenium = ">=4.25"
 undetected-chromedriver = "*"
 beautifulsoup4 = "*"
+geopy = ">=2.4"
 
 [tool.pixi.tasks]
 ty = { cmd = "ty check", description = "Check typing" }
@@ -142,6 +149,7 @@ extend-ignore = [
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = [ "D", "PD011" ]
 "task_*.py" = [ "ANN", "ARG001", "S603" ]
+"_version.py" = [ "UP007" ]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"

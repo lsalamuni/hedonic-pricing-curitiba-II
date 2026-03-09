@@ -1,0 +1,33 @@
+---
+# See docs at: https://mystmd.org/guide/frontmatter
+version: 1
+project:
+  id: hedonic-analysis
+  title: >-
+    Pricing the Unpriced: A Hedonic Analysis of
+    Curitiba's Segmented Real Estate Market
+  description: Hedonic pricing analysis of residential real estate in Curitiba, Brazil
+  authors:
+    - name: Lucas Salamuni
+      affiliations: [Universität zu Köln]
+      email: lsalamun@smail.uni-koeln.de
+  keywords:
+    - hedonic pricing
+    - principal component analysis
+    - spatial econometrics
+    - urban economics
+    - real estate
+    - market segmentation
+  exports:
+    - format: pdf
+      template: arxiv_nips
+      articles: paper.md
+      parts:
+        abstract: abstract
+      bibtex: refs.bib
+  exclude: [public/*]
+site:
+  template: book-theme
+  options:
+    favicon: null
+    logo: null
