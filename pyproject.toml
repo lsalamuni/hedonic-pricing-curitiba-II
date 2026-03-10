@@ -112,7 +112,6 @@ geopy = ">=2.4"
 [tool.pixi.tasks]
 ty = { cmd = "ty check", description = "Check typing" }
 view-paper = { cmd = "jupyter book start", description = "View the HTML paper in browser" }
-view-pres = { cmd = "npx slidev documents/presentation.md", description = "View the presentation in browser" }
 
 # ======================================================================================
 # Pytask configuration
