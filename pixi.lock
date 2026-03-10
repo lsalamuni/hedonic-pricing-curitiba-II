@@ -4616,8 +4616,8 @@ packages:
   timestamp: 1769445644521
 - pypi: ./
   name: hedonic-analysis
-  version: 0.1.dev45+g69e103034.d20260309
-  sha256: b899b40ed9a553090a789a990494e6fc5e473e7f28ffaf03fef4c57c8e8f7643
+  version: 0.1.dev46+g749ff7cfe.d20260309
+  sha256: 7200f6fd415c83c85764f321459c8cdf731825bf09faca35a845b8794eb84430
   requires_dist:
   - factor-analyzer>=0.5.1,<0.6
   - folium>=0.20.0,<0.21
