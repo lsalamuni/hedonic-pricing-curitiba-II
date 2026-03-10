@@ -9,6 +9,8 @@ from hedonic_analysis.data_management.merge_location_attributes import (
     merge_location_attributes,
 )
 
+pytestmark = pytest.mark.unit
+
 _INFO_PATH = (
     Path(__file__).parent.parent.parent
     / "src"
@@ -60,6 +62,7 @@ def test_add_apartment_flag_no_category():
     assert "apartment" not in result.columns
 
 
+@pytest.mark.integration
 @pytest.mark.skipif(
     not _INFO_PATH.exists() or not _CLASSIFICATION_PATH.exists(),
     reason="Data files not found",
@@ -76,6 +79,7 @@ def test_merge_returns_all_tiers(sample_housing):
     assert "high" in result
 
 
+@pytest.mark.integration
 @pytest.mark.skipif(
     not _INFO_PATH.exists() or not _CLASSIFICATION_PATH.exists(),
     reason="Data files not found",
@@ -89,6 +93,7 @@ def test_merge_adds_tier_column(sample_housing):
     assert "tier" in result["all"].columns
 
 
+@pytest.mark.integration
 @pytest.mark.skipif(
     not _INFO_PATH.exists() or not _CLASSIFICATION_PATH.exists(),
     reason="Data files not found",
@@ -103,6 +108,7 @@ def test_merge_adds_location_vars(sample_housing):
         assert var in result["all"].columns
 
 
+@pytest.mark.integration
 @pytest.mark.skipif(
     not _INFO_PATH.exists() or not _CLASSIFICATION_PATH.exists(),
     reason="Data files not found",
@@ -117,6 +123,7 @@ def test_merge_tier_split_is_exhaustive(sample_housing):
     assert total == len(result["all"])
 
 
+@pytest.mark.integration
 @pytest.mark.skipif(
     not _INFO_PATH.exists() or not _CLASSIFICATION_PATH.exists(),
     reason="Data files not found",

@@ -12,6 +12,8 @@ from hedonic_analysis.analysis.rosen_regression import (
     _run_jarque_bera,
 )
 
+pytestmark = pytest.mark.unit
+
 _N_OBS = 100
 
 

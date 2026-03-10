@@ -15,6 +15,8 @@ from hedonic_analysis.data_management.clean_housing import (
     clean_housing,
 )
 
+pytestmark = pytest.mark.unit
+
 # ------------------------------------------------------------------ #
 # Fixtures
 # ------------------------------------------------------------------ #

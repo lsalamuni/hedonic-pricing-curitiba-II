@@ -19,6 +19,8 @@ from hedonic_analysis.analysis.pca_housing import (
     run_pca_analysis,
 )
 
+pytestmark = pytest.mark.unit
+
 _N_VARS = 6
 _N_OBS = 20
 _N_BAIRROS = 75
@@ -204,6 +206,7 @@ def test_build_adequacy_table_content():
     assert "0.734" in df["Result"].iloc[0]
 
 
+@pytest.mark.integration
 def test_run_pca_analysis_on_real_data(tmp_path):
     data_path = (
         Path(__file__).parent.parent.parent

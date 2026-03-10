@@ -8,6 +8,8 @@ from hedonic_analysis.data_management.geocode_housing import (
     geocode_housing,
 )
 
+pytestmark = pytest.mark.unit
+
 _N_NON_OUTLIER = 3
 _OUTLIER_ID = 4
 _GEO = "hedonic_analysis.data_management.geocode_housing"

@@ -11,6 +11,8 @@ from hedonic_analysis.final.interactive_map import (
     build_interactive_map,
 )
 
+pytestmark = pytest.mark.unit
+
 _MOD = "hedonic_analysis.final.interactive_map"
 
 _POP_AGUA = 52_000
@@ -136,6 +138,7 @@ def test_normalize_key_strips_accents_and_uppercases():
     assert _normalize_key("\u00c1gua Verde") == "AGUA VERDE"
 
 
+@pytest.mark.integration
 def test_enrich_neighborhoods(sample_geojson, cls_df, pca_xlsx):
     enriched = _enrich_neighborhoods(
         sample_geojson,
@@ -152,6 +155,7 @@ def test_enrich_neighborhoods(sample_geojson, cls_df, pca_xlsx):
     assert props_cic["dens"] == _DENS_CIC
 
 
+@pytest.mark.integration
 def test_build_returns_folium_map(
     sample_geojson,
     sample_housing_df,
@@ -173,6 +177,7 @@ def test_build_returns_folium_map(
     assert isinstance(result, folium.Map)
 
 
+@pytest.mark.integration
 def test_map_html_contains_layer_names(
     sample_geojson,
     sample_housing_df,
@@ -203,6 +208,7 @@ def test_map_html_contains_layer_names(
         assert group in html
 
 
+@pytest.mark.integration
 def test_housing_popup_format(
     sample_geojson,
     sample_housing_df,
