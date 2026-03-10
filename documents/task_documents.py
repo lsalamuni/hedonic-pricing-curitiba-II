@@ -5,9 +5,9 @@ import subprocess
 from pathlib import Path
 
 from hedonic_analysis.config import (
-    BLD,
     BLD_ANALYSIS,
     BLD_DATA,
+    BLD_FINAL,
     BLD_IMAGES,
     DOCUMENTS,
     ROOT,
@@ -29,7 +29,7 @@ def task_compile_paper(
     adequacy_tex: Path = BLD_ANALYSIS / "adequacy_tests.tex",
     first_stage_tex: Path = BLD_ANALYSIS / "first_stage_paper.tex",
     second_stage_tex: Path = BLD_ANALYSIS / "second_stage_paper.tex",
-    produces: Path = BLD / "paper.pdf",
+    produces: Path = BLD_FINAL / "paper.pdf",
 ) -> None:
     """Compile the paper from MyST Markdown using Jupyter Book 2.0."""
     # Copy pipeline images to documents/public/ for MyST resolution

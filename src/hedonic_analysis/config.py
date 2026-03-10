@@ -9,6 +9,7 @@ BLD: Path = ROOT.joinpath("bld").resolve()
 BLD_DATA: Path = BLD.joinpath("data").resolve()
 BLD_ANALYSIS: Path = BLD.joinpath("analysis").resolve()
 BLD_IMAGES: Path = BLD.joinpath("images").resolve()
+BLD_FINAL: Path = BLD.joinpath("final").resolve()
 
 DOCUMENTS: Path = ROOT.joinpath("documents").resolve()
 
