@@ -4,14 +4,14 @@ import folium
 import pandas as pd
 import pytest
 
-from hedonic_analysis.analysis.interactive_map import (
+from hedonic_analysis.final.interactive_map import (
     _enrich_neighborhoods,
     _normalize_key,
     _strip_accents,
     build_interactive_map,
 )
 
-_MOD = "hedonic_analysis.analysis.interactive_map"
+_MOD = "hedonic_analysis.final.interactive_map"
 
 _POP_AGUA = 52_000
 _POP_CIC = 180_000
