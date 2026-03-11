@@ -99,8 +99,6 @@ scikit-learn = ">=1.8.0,<2"
 matplotlib = ">=3.10.8,<4"
 seaborn = ">=0.13.2,<0.14"
 pyproj = ">=3.7.2,<4"
-texlive-core = "*"
-perl = "*"
 
 [tool.pixi.pypi-dependencies]
 hedonic_analysis = { path = ".", editable = true }

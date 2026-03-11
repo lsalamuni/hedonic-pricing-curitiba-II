@@ -14,7 +14,12 @@ dependence.
 ## Reproducing the Analysis
 
 The only prerequisite is [Pixi](https://pixi.sh/), which handles all dependencies
-(Python, conda packages, and pip packages).
+(Python, conda packages, and pip packages). To compile the paper to PDF, a LaTeX
+distribution must be installed separately:
+
+- **macOS:** [MacTeX](https://www.tug.org/mactex/)
+- **Linux:** `sudo apt install texlive-full` (Debian/Ubuntu) or equivalent
+- **Windows:** [MiKTeX](https://miktex.org/)
 
 ```bash
 # 1. Install Pixi (https://pixi.sh/)
