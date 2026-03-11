@@ -21,8 +21,8 @@ The only prerequisite is [Pixi](https://pixi.sh/), which handles all dependencie
 curl -fsSL https://pixi.sh/install.sh | bash
 
 # 2. Clone and enter the repository
-git clone https://github.com/iame-uni-bonn/final-project-lsalamuni.git
-cd final-project-lsalamuni
+git clone https://github.com/lsalamuni/hedonic-pricing-curitiba-II.git
+cd hedonic-pricing-curitiba-II
 
 # 3. Run the full pipeline (data cleaning → PCA → regressions → map → paper)
 pixi run pytask
